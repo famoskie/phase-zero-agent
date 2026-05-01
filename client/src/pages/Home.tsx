@@ -26,6 +26,7 @@ import { exportBriefAsPdf } from "@/lib/pdfExport";
 import { formatBriefSection } from "@/lib/formatBrief";
 import { Streamdown } from "streamdown";
 import { MetricsBar, type CompanyMetrics, type MetricsConfidence } from "@/components/MetricsBar";
+import { BriefLoader } from "@/components/BriefLoader";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Brief = {
@@ -776,7 +777,7 @@ export default function Home() {
             </div>
 
             {/* Loading state */}
-            {isLoading && <BriefSkeleton url={url || generateMutation.variables?.url || ""} />}
+            {isLoading && <BriefLoader url={generateMutation.variables?.url || url || ""} />}
 
             {/* Brief output */}
             {activeBrief && !isLoading && (
