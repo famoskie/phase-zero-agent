@@ -161,9 +161,9 @@ export default function CompareView({ ids }: { ids: number[] }) {
             </div>
           </div>
           <img
-            src="/manus-storage/phase-zero-logo_d73cfc85.png"
+            src="/manus-storage/phase-zero-logo-cropped_13401adf.png"
             alt="Phase Zero"
-            className="h-6 w-auto object-contain opacity-80"
+            className="h-7 w-auto object-contain opacity-80"
           />
         </div>
       </header>

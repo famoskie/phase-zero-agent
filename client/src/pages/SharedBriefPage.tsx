@@ -103,9 +103,9 @@ export default function SharedBriefPage({ token }: { token: string }) {
         <div className="container flex items-center justify-between h-14">
           <a href="/" className="flex items-center hover:opacity-80 transition-opacity" title="Phase Zero — Home">
             <img
-              src="/manus-storage/phase-zero-logo_d73cfc85.png"
+              src="/manus-storage/phase-zero-logo-cropped_13401adf.png"
               alt="Phase Zero"
-              className="h-7 w-auto object-contain"
+              className="h-8 w-auto object-contain"
             />
           </a>
           <div className="flex items-center gap-2">
