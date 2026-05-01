@@ -105,7 +105,7 @@ export default function SharedBriefPage({ token }: { token: string }) {
             <img
               src="/manus-storage/phase-zero-logo-cropped_13401adf.png"
               alt="Phase Zero"
-              className="h-8 w-auto object-contain"
+              className="h-6 w-auto object-contain"
             />
           </a>
           <div className="flex items-center gap-2">
