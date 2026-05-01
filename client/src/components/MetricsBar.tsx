@@ -1,6 +1,8 @@
 import {
   Building2,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
   CircleDollarSign,
   Code2,
   Globe,
@@ -8,6 +10,7 @@ import {
   TrendingUp,
   Users,
 } from "lucide-react";
+import { useRef, useState, useEffect, useCallback } from "react";
 
 export type ConfidenceLevel = "explicit" | "inferred" | "unknown";
 
@@ -78,7 +81,6 @@ function MetricPill({
       className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-border shrink-0 min-w-0 max-w-[180px] sm:max-w-[220px]"
       title={`${label}: ${isUnknown ? "Unknown" : value} (${conf.title})`}
     >
-      {/* Icon + label */}
       <span className={`shrink-0 ${isUnknown ? "text-muted-foreground/30" : "text-[oklch(0.38_0.12_264)]"}`}>
         {icon}
       </span>
@@ -86,19 +88,11 @@ function MetricPill({
         <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground leading-none mb-0.5">
           {label}
         </p>
-        <p
-          className={`text-xs font-medium leading-tight truncate ${
-            isUnknown ? "text-muted-foreground/40 italic" : "text-foreground"
-          }`}
-        >
+        <p className={`text-xs font-medium leading-tight truncate ${isUnknown ? "text-muted-foreground/40 italic" : "text-foreground"}`}>
           {isUnknown ? "Unknown" : value}
         </p>
       </div>
-      {/* Confidence dot */}
-      <span
-        className={`w-1.5 h-1.5 rounded-full shrink-0 ${conf.dot}`}
-        title={conf.title}
-      />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${conf.dot}`} title={conf.title} />
     </div>
   );
 }
@@ -113,6 +107,10 @@ export function MetricsBar({
   pagesScraped?: number | null;
   pagesSummary?: string | null;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
   const conf = metrics.metricsConfidence ?? {};
 
   const pills = METRIC_DEFS.map((def) => ({
@@ -123,6 +121,30 @@ export function MetricsBar({
 
   const knownCount = pills.filter((p) => p.confidence === "explicit").length;
   const inferredCount = pills.filter((p) => p.confidence === "inferred").length;
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState, { passive: true });
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", updateScrollState);
+      ro.disconnect();
+    };
+  }, [updateScrollState]);
+
+  const scrollBy = (direction: "left" | "right") => {
+    scrollRef.current?.scrollBy({ left: direction === "right" ? 220 : -220, behavior: "smooth" });
+  };
 
   return (
     <div className="border-b border-border bg-secondary/20">
@@ -154,18 +176,55 @@ export function MetricsBar({
         </div>
       </div>
 
-      {/* Scrollable pill row */}
-      <div className="overflow-x-auto pb-3 px-4">
-        <div className="flex gap-2" style={{ width: "max-content" }}>
-          {pills.map((pill) => (
-            <MetricPill
-              key={pill.label}
-              icon={pill.icon}
-              label={pill.label}
-              value={pill.value}
-              confidence={pill.confidence}
-            />
-          ))}
+      {/* Scrollable pill row with fade + arrow affordances */}
+      <div className="relative pb-3">
+        {/* Left fade + arrow */}
+        <div
+          className={`absolute left-0 top-0 bottom-3 w-12 z-10 pointer-events-none transition-opacity duration-200 ${canScrollLeft ? "opacity-100" : "opacity-0"}`}
+          style={{ background: "linear-gradient(to right, oklch(0.96 0 0 / 0.95), transparent)" }}
+        />
+        {canScrollLeft && (
+          <button
+            onClick={() => scrollBy("left")}
+            className="absolute left-1 top-1/2 -translate-y-1/2 z-20 w-6 h-6 rounded-full bg-white border border-border shadow-sm flex items-center justify-center hover:bg-secondary transition-colors"
+            aria-label="Scroll left"
+          >
+            <ChevronLeft className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        )}
+
+        {/* Right fade + arrow */}
+        <div
+          className={`absolute right-0 top-0 bottom-3 w-16 z-10 pointer-events-none transition-opacity duration-200 ${canScrollRight ? "opacity-100" : "opacity-0"}`}
+          style={{ background: "linear-gradient(to left, oklch(0.96 0 0 / 0.95), transparent)" }}
+        />
+        {canScrollRight && (
+          <button
+            onClick={() => scrollBy("right")}
+            className="absolute right-1 top-1/2 -translate-y-1/2 z-20 w-6 h-6 rounded-full bg-white border border-border shadow-sm flex items-center justify-center hover:bg-secondary transition-colors"
+            aria-label="Scroll right"
+          >
+            <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
+          </button>
+        )}
+
+        {/* The scrollable row */}
+        <div
+          ref={scrollRef}
+          className="overflow-x-auto px-4 scrollbar-hide"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          <div className="flex gap-2" style={{ width: "max-content" }}>
+            {pills.map((pill) => (
+              <MetricPill
+                key={pill.label}
+                icon={pill.icon}
+                label={pill.label}
+                value={pill.value}
+                confidence={pill.confidence}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </div>
