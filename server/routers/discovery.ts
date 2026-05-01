@@ -22,6 +22,15 @@ const briefSchema = z.object({
   userPainPoints: z.string(),
   aiOpportunities: z.string(),
   recommendedEngagement: z.string(),
+  // Company metrics — use "Unknown" if not inferable from content
+  foundedYear: z.string(),
+  employeeCount: z.string(),
+  fundingStage: z.string(),
+  industry: z.string(),
+  headquarters: z.string(),
+  businessModel: z.string(),
+  techStack: z.string(),
+  revenueModel: z.string(),
 });
 
 export const discoveryRouter = router({
@@ -46,15 +55,18 @@ export const discoveryRouter = router({
         });
       }
 
-      // Generate the brief via LLM
-      const systemPrompt = `You are a senior product strategist at Fluxon, a world-class software development consultancy trusted by OpenAI, Anthropic, Stripe, and Google. 
+      // Generate the brief + metrics via LLM
+      const systemPrompt = `You are a senior product strategist at Fluxon, a world-class software development consultancy trusted by OpenAI, Anthropic, Stripe, and Google.
 Fluxon's services include: ${FLUXON_SERVICES.join(", ")}.
 
-Your job is to analyze a company's website content and produce a structured discovery brief that a Fluxon PM would use on day one of a new client engagement.
+Your job is to analyze a company's website content and produce:
+1. A structured discovery brief that a Fluxon PM would use on day one of a new client engagement.
+2. Key company metrics extracted or inferred from the content.
 
-Be specific, insightful, and concise. Avoid generic statements. Ground every observation in the actual content provided.`;
+Be specific, insightful, and concise. Avoid generic statements. Ground every observation in the actual content provided.
+For metrics, extract what is explicitly stated. If a metric cannot be determined from the content, use "Unknown".`;
 
-      const userPrompt = `Analyze the following website content and produce a structured discovery brief.
+      const userPrompt = `Analyze the following website content and produce a structured discovery brief with company metrics.
 
 Website URL: ${input.url}
 Website Content:
@@ -63,11 +75,23 @@ ${pageContent}
 ---
 
 Return a JSON object with exactly these fields:
+
+DISCOVERY BRIEF:
 - companyName: The company's name (string)
 - valueProposition: 2-3 sentences describing the company's core product and value proposition, grounded in the content (string)
 - userPainPoints: 3-4 specific user pain points or unmet needs that this company's product addresses or that their users likely experience, written as clear statements (string)
 - aiOpportunities: 3-4 concrete areas where AI/ML could meaningfully improve this company's product or operations, with brief rationale for each (string)
-- recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Explain the recommendation in 2-3 sentences (string)`;
+- recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Explain the recommendation in 2-3 sentences (string)
+
+COMPANY METRICS (extract from content; use "Unknown" if not determinable):
+- foundedYear: Year the company was founded, e.g. "2018" (string)
+- employeeCount: Approximate number of employees or a range, e.g. "50-200", "1,000+", "~500" (string)
+- fundingStage: Funding stage or total raised, e.g. "Series B", "$45M raised", "Bootstrapped", "Public" (string)
+- industry: Primary industry or sector, e.g. "Developer Tools", "FinTech", "Healthcare AI" (string)
+- headquarters: City and country of HQ, e.g. "San Francisco, USA" (string)
+- businessModel: Primary business model, e.g. "B2B SaaS", "B2C Marketplace", "Enterprise", "API" (string)
+- techStack: Key technologies mentioned or inferred, e.g. "React, Python, AWS" — use "Unknown" if none mentioned (string)
+- revenueModel: How they make money, e.g. "Subscription", "Usage-based", "Freemium + Enterprise", "Transaction fees" (string)`;
 
       let briefData: z.infer<typeof briefSchema>;
       try {
@@ -89,6 +113,14 @@ Return a JSON object with exactly these fields:
                   userPainPoints: { type: "string" },
                   aiOpportunities: { type: "string" },
                   recommendedEngagement: { type: "string" },
+                  foundedYear: { type: "string" },
+                  employeeCount: { type: "string" },
+                  fundingStage: { type: "string" },
+                  industry: { type: "string" },
+                  headquarters: { type: "string" },
+                  businessModel: { type: "string" },
+                  techStack: { type: "string" },
+                  revenueModel: { type: "string" },
                 },
                 required: [
                   "companyName",
@@ -96,6 +128,14 @@ Return a JSON object with exactly these fields:
                   "userPainPoints",
                   "aiOpportunities",
                   "recommendedEngagement",
+                  "foundedYear",
+                  "employeeCount",
+                  "fundingStage",
+                  "industry",
+                  "headquarters",
+                  "businessModel",
+                  "techStack",
+                  "revenueModel",
                 ],
                 additionalProperties: false,
               },
@@ -124,6 +164,14 @@ Return a JSON object with exactly these fields:
         aiOpportunities: briefData.aiOpportunities,
         recommendedEngagement: briefData.recommendedEngagement,
         rawContent: pageContent.slice(0, 2000),
+        foundedYear: briefData.foundedYear,
+        employeeCount: briefData.employeeCount,
+        fundingStage: briefData.fundingStage,
+        industry: briefData.industry,
+        headquarters: briefData.headquarters,
+        businessModel: briefData.businessModel,
+        techStack: briefData.techStack,
+        revenueModel: briefData.revenueModel,
       });
 
       return {

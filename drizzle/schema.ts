@@ -36,6 +36,15 @@ export const briefs = mysqlTable("briefs", {
   aiOpportunities: text("aiOpportunities"),
   recommendedEngagement: text("recommendedEngagement"),
   rawContent: text("rawContent"),
+  // Company metrics
+  foundedYear: varchar("foundedYear", { length: 16 }),
+  employeeCount: varchar("employeeCount", { length: 64 }),
+  fundingStage: varchar("fundingStage", { length: 64 }),
+  industry: varchar("industry", { length: 128 }),
+  headquarters: varchar("headquarters", { length: 128 }),
+  businessModel: varchar("businessModel", { length: 64 }),
+  techStack: text("techStack"),
+  revenueModel: varchar("revenueModel", { length: 128 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

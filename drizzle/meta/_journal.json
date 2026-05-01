@@ -15,6 +15,13 @@
       "when": 1777611810275,
       "tag": "0001_chemical_wong",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1777612843576,
+      "tag": "0002_narrow_shape",
+      "breakpoints": true
     }
   ]
 }

@@ -27,3 +27,13 @@
 - [x] Empty states (no history, no brief yet)
 - [x] Error handling (invalid URL, scrape failure, LLM error)
 - [x] Toast notifications for copy/export success
+
+## Company Metrics Feature
+- [x] Add metrics columns to `briefs` table (foundedYear, employeeCount, fundingStage, industry, headquarters, businessModel, techStack, revenueModel)
+- [x] Generate and apply DB migration for metrics columns
+- [x] Update AI prompt in discovery router to extract metrics as structured JSON
+- [x] Update DB insert/select helpers to include metrics fields
+- [x] Build MetricsBar component with icon-labeled metric chips
+- [x] Integrate MetricsBar into BriefCard (displayed between header and sections)
+- [x] Show "N/A" gracefully for metrics that couldn't be inferred
+- [x] Update vitest tests to cover metrics extraction

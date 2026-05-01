@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
+import { MetricsBar, type CompanyMetrics } from "@/components/MetricsBar";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Brief = {
@@ -29,6 +30,15 @@ type Brief = {
   aiOpportunities: string;
   recommendedEngagement: string;
   createdAt: Date;
+  // Metrics
+  foundedYear?: string | null;
+  employeeCount?: string | null;
+  fundingStage?: string | null;
+  industry?: string | null;
+  headquarters?: string | null;
+  businessModel?: string | null;
+  techStack?: string | null;
+  revenueModel?: string | null;
 };
 
 // ─── Section config ───────────────────────────────────────────────────────────
@@ -61,14 +71,36 @@ const SECTIONS = [
 
 // ─── Brief Card ───────────────────────────────────────────────────────────────
 function BriefCard({ brief }: { brief: Brief }) {
+  const metrics: CompanyMetrics = {
+    foundedYear: brief.foundedYear,
+    employeeCount: brief.employeeCount,
+    fundingStage: brief.fundingStage,
+    industry: brief.industry,
+    headquarters: brief.headquarters,
+    businessModel: brief.businessModel,
+    techStack: brief.techStack,
+    revenueModel: brief.revenueModel,
+  };
+
+  const metricsText = [
+    brief.industry && `Industry: ${brief.industry}`,
+    brief.businessModel && `Business Model: ${brief.businessModel}`,
+    brief.fundingStage && `Funding: ${brief.fundingStage}`,
+    brief.employeeCount && `Team Size: ${brief.employeeCount}`,
+    brief.foundedYear && `Founded: ${brief.foundedYear}`,
+    brief.headquarters && `HQ: ${brief.headquarters}`,
+    brief.revenueModel && `Revenue Model: ${brief.revenueModel}`,
+    brief.techStack && `Tech Stack: ${brief.techStack}`,
+  ].filter(Boolean).join(" · ");
+
   const handleCopy = () => {
-    const text = `# Phase Zero Discovery Brief\n**Company:** ${brief.companyName}\n**URL:** ${brief.url}\n**Generated:** ${new Date(brief.createdAt).toLocaleDateString()}\n\n---\n\n## Company & Core Value Proposition\n${brief.valueProposition}\n\n## Inferred User Pain Points\n${brief.userPainPoints}\n\n## AI Opportunity Areas\n${brief.aiOpportunities}\n\n## Recommended Fluxon Engagement Type\n${brief.recommendedEngagement}`;
+    const text = `# Phase Zero Discovery Brief\n**Company:** ${brief.companyName}\n**URL:** ${brief.url}\n**Generated:** ${new Date(brief.createdAt).toLocaleDateString()}\n${metricsText ? `\n**Snapshot:** ${metricsText}` : ""}\n\n---\n\n## Company & Core Value Proposition\n${brief.valueProposition}\n\n## Inferred User Pain Points\n${brief.userPainPoints}\n\n## AI Opportunity Areas\n${brief.aiOpportunities}\n\n## Recommended Fluxon Engagement Type\n${brief.recommendedEngagement}`;
     navigator.clipboard.writeText(text);
     toast.success("Brief copied to clipboard");
   };
 
   const handleExport = () => {
-    const text = `# Phase Zero Discovery Brief\n**Company:** ${brief.companyName}\n**URL:** ${brief.url}\n**Generated:** ${new Date(brief.createdAt).toLocaleDateString()}\n\n---\n\n## Company & Core Value Proposition\n${brief.valueProposition}\n\n## Inferred User Pain Points\n${brief.userPainPoints}\n\n## AI Opportunity Areas\n${brief.aiOpportunities}\n\n## Recommended Fluxon Engagement Type\n${brief.recommendedEngagement}`;
+    const text = `# Phase Zero Discovery Brief\n**Company:** ${brief.companyName}\n**URL:** ${brief.url}\n**Generated:** ${new Date(brief.createdAt).toLocaleDateString()}\n${metricsText ? `\n**Snapshot:** ${metricsText}` : ""}\n\n---\n\n## Company & Core Value Proposition\n${brief.valueProposition}\n\n## Inferred User Pain Points\n${brief.userPainPoints}\n\n## AI Opportunity Areas\n${brief.aiOpportunities}\n\n## Recommended Fluxon Engagement Type\n${brief.recommendedEngagement}`;
     const blob = new Blob([text], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -133,6 +165,9 @@ function BriefCard({ brief }: { brief: Brief }) {
           </span>
         </div>
       </div>
+
+      {/* Metrics Bar */}
+      <MetricsBar metrics={metrics} />
 
       {/* Sections */}
       <div className="p-6 grid gap-4">

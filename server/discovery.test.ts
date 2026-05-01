@@ -34,6 +34,14 @@ const MOCK_BRIEF_CONTENT = {
   userPainPoints: "Teams struggle with manual widget configuration.",
   aiOpportunities: "AI can automate widget setup and suggest configurations.",
   recommendedEngagement: "AI Expertise — Acme needs AI-powered automation.",
+  foundedYear: "2015",
+  employeeCount: "50-200",
+  fundingStage: "Series B",
+  industry: "Enterprise SaaS",
+  headquarters: "San Francisco, USA",
+  businessModel: "B2B SaaS",
+  techStack: "React, Python, AWS",
+  revenueModel: "Subscription",
 };
 
 function makeCtx(user?: TrpcContext["user"]): TrpcContext {
@@ -62,6 +70,15 @@ describe("discovery.generate", () => {
     expect(result.companyName).toBe("Acme Corp");
     expect(result.valueProposition).toContain("widgets");
     expect(result.id).toBe(42);
+    // Metrics
+    expect(result.foundedYear).toBe("2015");
+    expect(result.employeeCount).toBe("50-200");
+    expect(result.fundingStage).toBe("Series B");
+    expect(result.industry).toBe("Enterprise SaaS");
+    expect(result.headquarters).toBe("San Francisco, USA");
+    expect(result.businessModel).toBe("B2B SaaS");
+    expect(result.techStack).toBe("React, Python, AWS");
+    expect(result.revenueModel).toBe("Subscription");
     expect(mockScrape).toHaveBeenCalledWith("https://acme.com");
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({ url: "https://acme.com", companyName: "Acme Corp" })
