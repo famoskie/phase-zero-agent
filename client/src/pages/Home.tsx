@@ -494,18 +494,17 @@ export default function Home() {
 
   const utils = trpc.useUtils();
 
+  const [inputError, setInputError] = useState<string | null>(null);
+
   const generateMutation = trpc.discovery.generate.useMutation({
     onSuccess: (data) => {
       setActiveBrief(data as Brief);
       setUrl("");
+      setInputError(null);
       utils.favorites.listFiltered.invalidate();
       utils.favorites.allTags.invalidate();
     },
-    onError: (err) => {
-      const msg = err.message || "Something went wrong. Please try again.";
-      // Show a clean, actionable error message
-      toast.error(msg, { duration: 6000 });
-    },
+    // No toast — error is shown inline below the form
   });
 
   const { data: history = [], refetch: refetchHistory } = trpc.favorites.listFiltered.useQuery(historyFilter);
@@ -533,26 +532,25 @@ export default function Home() {
     // Basic format check before sending to server
     try {
       const parsed = new URL(normalized);
-      // Block obviously invalid inputs
       if (!parsed.hostname.includes(".")) {
-        toast.error("Please enter a valid website URL, e.g. https://company.com");
+        setInputError("Please enter a valid website URL, e.g. https://company.com");
         return;
       }
-      // Block localhost and private IPs
       if (
         parsed.hostname === "localhost" ||
         parsed.hostname.startsWith("127.") ||
         parsed.hostname.startsWith("192.168.") ||
         parsed.hostname.startsWith("10.")
       ) {
-        toast.error("Please enter a public website URL.");
+        setInputError("Please enter a public website URL, not a local address.");
         return;
       }
     } catch {
-      toast.error("Please enter a valid website URL, e.g. https://company.com");
+      setInputError("Please enter a valid website URL, e.g. https://company.com");
       return;
     }
 
+    setInputError(null);
     setActiveBrief(null);
     generateMutation.mutate({ url: normalized });
   };
@@ -724,7 +722,7 @@ export default function Home() {
                     type="text"
                     placeholder="https://company.com"
                     value={url}
-                    onChange={(e) => setUrl(e.target.value)}
+                    onChange={(e) => { setUrl(e.target.value); if (inputError) setInputError(null); if (generateMutation.error) generateMutation.reset(); }}
                     disabled={isLoading}
                     className="pl-9 h-11 text-sm border-border focus-visible:ring-[oklch(0.38_0.12_264)] bg-white"
                   />
@@ -747,18 +745,35 @@ export default function Home() {
                   )}
                 </Button>
               </form>
-            </div>
 
-            {/* Inline error display */}
-            {generateError && !isLoading && !activeBrief && (
-              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 flex items-start gap-3 animate-fade-in-up">
-                <span className="text-destructive mt-0.5 shrink-0 text-base">⚠️</span>
-                <div>
-                  <p className="text-sm font-semibold text-destructive">Could not generate brief</p>
-                  <p className="text-xs text-destructive/80 mt-0.5 leading-relaxed">{generateError}</p>
+              {/* Inline error — shown directly below the form, not in a corner */}
+              {(inputError || (generateError && !isLoading && !activeBrief)) && (
+                <div className="mt-3 rounded-xl border border-destructive/25 bg-red-50 px-4 py-3.5 flex items-start gap-3 animate-fade-in-up">
+                  <span className="shrink-0 mt-0.5 text-destructive">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
+                      <path d="M8 5v3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      <circle cx="8" cy="11" r="0.75" fill="currentColor"/>
+                    </svg>
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-destructive leading-tight">
+                      {inputError ? "Invalid URL" : "Could not generate brief"}
+                    </p>
+                    <p className="text-xs text-destructive/75 mt-1 leading-relaxed">
+                      {inputError || generateError}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setInputError(null); generateMutation.reset(); }}
+                    className="shrink-0 ml-auto text-destructive/50 hover:text-destructive transition-colors"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Loading state */}
             {isLoading && <BriefSkeleton url={url || generateMutation.variables?.url || ""} />}
