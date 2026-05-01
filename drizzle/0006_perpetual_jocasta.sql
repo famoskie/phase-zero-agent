@@ -1,0 +1,1 @@
+ALTER TABLE `briefs` ADD `sessionId` varchar(64);

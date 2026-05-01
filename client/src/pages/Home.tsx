@@ -497,18 +497,16 @@ export default function Home() {
     onSuccess: (data) => {
       setActiveBrief(data as Brief);
       setUrl("");
-      if (isAuthenticated) { utils.favorites.listFiltered.invalidate(); utils.favorites.allTags.invalidate(); }
+      utils.favorites.listFiltered.invalidate();
+      utils.favorites.allTags.invalidate();
     },
     onError: (err) => {
       toast.error(err.message || "Something went wrong. Please try again.");
     },
   });
 
-  const { data: history = [], refetch: refetchHistory } = trpc.favorites.listFiltered.useQuery(
-    historyFilter,
-    { enabled: isAuthenticated }
-  );
-  const { data: allTags = [] } = trpc.favorites.allTags.useQuery(undefined, { enabled: isAuthenticated });
+  const { data: history = [], refetch: refetchHistory } = trpc.favorites.listFiltered.useQuery(historyFilter);
+  const { data: allTags = [] } = trpc.favorites.allTags.useQuery();
 
   const deleteMutation = trpc.discovery.delete.useMutation({
     onSuccess: () => {
@@ -549,32 +547,22 @@ export default function Home() {
             />
           </a>
           <div className="flex items-center gap-2">
-            {isAuthenticated && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-xs"
-                onClick={() => setShowHistory(!showHistory)}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                History
-                {history.length > 0 && (
-                  <span className="bg-foreground text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                    {history.length}
-                  </span>
-                )}
-              </Button>
-            )}
-            {isAuthenticated ? (
-              <span className="text-xs text-muted-foreground hidden sm:block">
-                {user?.name}
-              </span>
-            ) : (
-              <a href={getLoginUrl()}>
-                <Button size="sm" variant="outline" className="text-xs">
-                  Sign in to save history
-                </Button>
-              </a>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-xs"
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              History
+              {history.length > 0 && (
+                <span className="bg-foreground text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                  {history.length}
+                </span>
+              )}
+            </Button>
+            {user?.name && (
+              <span className="text-xs text-muted-foreground hidden sm:block">{user.name}</span>
             )}
           </div>
         </div>
@@ -582,7 +570,7 @@ export default function Home() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* ── History Sidebar ── */}
-        {showHistory && isAuthenticated && (
+        {showHistory && (
           <aside className="w-72 border-r border-border bg-white flex flex-col shrink-0">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-foreground">Brief History</h2>
@@ -737,7 +725,7 @@ export default function Home() {
             {activeBrief && !isLoading && (
               <BriefCard
                 brief={activeBrief}
-                isOwner={isAuthenticated}
+                isOwner={true}
                 onRegenerate={(updated) => setActiveBrief(updated)}
               />
             )}
@@ -766,22 +754,7 @@ export default function Home() {
               </div>
             )}
 
-            {/* Sign-in nudge for anonymous users after generating */}
-            {activeBrief && !isAuthenticated && (
-              <div className="mt-4 rounded-xl border border-[oklch(0.94_0.04_264)] bg-[oklch(0.97_0.02_264)] p-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Save your brief history</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Sign in to revisit all your past discovery briefs.
-                  </p>
-                </div>
-                <a href={getLoginUrl()}>
-                  <Button size="sm" className="bg-foreground text-white hover:bg-foreground/90 text-xs shrink-0">
-                    Sign in
-                  </Button>
-                </a>
-              </div>
-            )}
+
           </div>
         </main>
       </div>

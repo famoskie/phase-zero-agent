@@ -1,10 +1,19 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { deleteBrief, getBriefById, getBriefsByUser, insertBrief, updateBrief, getBriefByToken, setShareToken } from "../db";
+import {
+  deleteBrief,
+  getBriefById,
+  getBriefsBySession,
+  getBriefByToken,
+  insertBrief,
+  setShareToken,
+  updateBrief,
+} from "../db";
 import { nanoid } from "nanoid";
 import { invokeLLM } from "../_core/llm";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { publicProcedure, router } from "../_core/trpc";
 import { scrapeMultiPage } from "../scraper";
+import { getOrCreateSessionId, getSessionId } from "../_core/session";
 
 const FLUXON_SERVICES = [
   "AI Expertise",
@@ -30,7 +39,7 @@ const metricsConfidenceSchema = z.object({
   revenueModel: confidenceLevel,
 });
 
-// ── Shared helpers ──────────────────────────────────────────────────────────────
+// ── Shared helpers ────────────────────────────────────────────────────────────
 function buildBriefPrompt(url: string, pageContent: string, pagesScraped: number, pagesSummary: string): string {
   return `Analyze the following website content scraped from ${pagesScraped} page(s) (${pagesSummary}) and produce a structured discovery brief with company metrics and confidence indicators.
 
@@ -123,139 +132,55 @@ const briefSchema = z.object({
   metricsConfidence: metricsConfidenceSchema,
 });
 
+async function runLLM(url: string, pageContent: string, pagesScraped: number, pagesSummary: string) {
+  const systemPrompt = `You are a senior product strategist at Fluxon, a world-class software development consultancy trusted by OpenAI, Anthropic, Stripe, and Google.
+Fluxon's services include: ${FLUXON_SERVICES.join(", ")}.
+Analyze a company's website and produce a structured discovery brief with metrics and confidence indicators.
+Be specific, insightful, and concise. Avoid generic statements.`;
+
+  const response = await invokeLLM({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: buildBriefPrompt(url, pageContent, pagesScraped, pagesSummary) },
+    ],
+    response_format: buildResponseFormat(),
+  });
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("Empty LLM response");
+  const contentStr = typeof content === "string" ? content : JSON.stringify(content);
+  return briefSchema.parse(JSON.parse(contentStr));
+}
+
 export const discoveryRouter = router({
+  // ── Generate ──────────────────────────────────────────────────────────────
   generate: publicProcedure
     .input(z.object({ url: z.string().url("Please enter a valid URL") }))
     .mutation(async ({ input, ctx }) => {
-      // Multi-page scrape
+      const sessionId = getOrCreateSessionId(ctx.req, ctx.res);
+
       let scrapeResult: Awaited<ReturnType<typeof scrapeMultiPage>>;
       try {
         scrapeResult = await scrapeMultiPage(input.url);
       } catch (err: any) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Could not fetch the URL: ${err.message}`,
-        });
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Could not fetch the URL: ${err.message}` });
       }
 
       const { content: pageContent, pagesScraped, pagesSummary } = scrapeResult;
-
       if (!pageContent || pageContent.length < 50) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "The page returned too little content to analyze. Please try a different URL.",
-        });
+        throw new TRPCError({ code: "BAD_REQUEST", message: "The page returned too little content to analyze. Please try a different URL." });
       }
-
-      const systemPrompt = `You are a senior product strategist at Fluxon, a world-class software development consultancy trusted by OpenAI, Anthropic, Stripe, and Google.
-Fluxon's services include: ${FLUXON_SERVICES.join(", ")}.
-
-Your job is to analyze a company's website content and produce:
-1. A structured discovery brief that a Fluxon PM would use on day one of a new client engagement.
-2. Key company metrics extracted or inferred from the content.
-3. A confidence level for each metric: "explicit" (directly stated on the page), "inferred" (reasonably deduced from context), or "unknown" (cannot be determined).
-
-Be specific, insightful, and concise. Avoid generic statements. Ground every observation in the actual content provided.`;
-
-      const userPrompt = `Analyze the following website content scraped from ${pagesScraped} page(s) (${pagesSummary}) and produce a structured discovery brief with company metrics and confidence indicators.
-
-Website URL: ${input.url}
-Website Content:
----
-${pageContent}
----
-
-Return a JSON object with exactly these fields:
-
-DISCOVERY BRIEF:
-- companyName: The company's name (string)
-- valueProposition: 2-3 sentences describing the company's core product and value proposition, grounded in the content (string)
-- userPainPoints: 3-4 specific user pain points or unmet needs that this company's product addresses or that their users likely experience, written as clear statements (string)
-- aiOpportunities: 3-4 concrete areas where AI/ML could meaningfully improve this company's product or operations, with brief rationale for each (string)
-- recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Explain the recommendation in 2-3 sentences (string)
-
-COMPANY METRICS (use "Unknown" as value if not determinable):
-- foundedYear: Year the company was founded, e.g. "2018" (string)
-- employeeCount: Approximate number of employees or a range, e.g. "50-200", "1,000+" (string)
-- fundingStage: Funding stage or total raised, e.g. "Series B", "$45M raised", "Bootstrapped", "Public" (string)
-- industry: Primary industry or sector, e.g. "Developer Tools", "FinTech" (string)
-- headquarters: City and country of HQ, e.g. "San Francisco, USA" (string)
-- businessModel: Primary business model, e.g. "B2B SaaS", "B2C Marketplace" (string)
-- techStack: Key technologies mentioned or inferred, e.g. "React, Python, AWS" (string)
-- revenueModel: How they make money, e.g. "Subscription", "Usage-based", "Freemium + Enterprise" (string)
-
-CONFIDENCE (for each metric above, set to "explicit" if directly stated on the page, "inferred" if reasonably deduced, or "unknown" if not determinable):
-- metricsConfidence: object with keys foundedYear, employeeCount, fundingStage, industry, headquarters, businessModel, techStack, revenueModel — each value must be exactly "explicit", "inferred", or "unknown"`;
 
       let briefData: z.infer<typeof briefSchema>;
       try {
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "discovery_brief",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  companyName: { type: "string" },
-                  valueProposition: { type: "string" },
-                  userPainPoints: { type: "string" },
-                  aiOpportunities: { type: "string" },
-                  recommendedEngagement: { type: "string" },
-                  foundedYear: { type: "string" },
-                  employeeCount: { type: "string" },
-                  fundingStage: { type: "string" },
-                  industry: { type: "string" },
-                  headquarters: { type: "string" },
-                  businessModel: { type: "string" },
-                  techStack: { type: "string" },
-                  revenueModel: { type: "string" },
-                  metricsConfidence: {
-                    type: "object",
-                    properties: {
-                      foundedYear: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      employeeCount: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      fundingStage: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      industry: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      headquarters: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      businessModel: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      techStack: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                      revenueModel: { type: "string", enum: ["explicit", "inferred", "unknown"] },
-                    },
-                    required: ["foundedYear", "employeeCount", "fundingStage", "industry", "headquarters", "businessModel", "techStack", "revenueModel"],
-                    additionalProperties: false,
-                  },
-                },
-                required: [
-                  "companyName", "valueProposition", "userPainPoints", "aiOpportunities",
-                  "recommendedEngagement", "foundedYear", "employeeCount", "fundingStage",
-                  "industry", "headquarters", "businessModel", "techStack", "revenueModel",
-                  "metricsConfidence",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-        });
-
-        const content = response.choices[0]?.message?.content;
-        if (!content) throw new Error("Empty LLM response");
-        const contentStr = typeof content === "string" ? content : JSON.stringify(content);
-        briefData = briefSchema.parse(JSON.parse(contentStr));
+        briefData = await runLLM(input.url, pageContent, pagesScraped, pagesSummary);
       } catch (err: any) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: `AI analysis failed: ${err.message}`,
-        });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `AI analysis failed: ${err.message}` });
       }
 
       const briefId = await insertBrief({
         userId: ctx.user?.id ?? null,
+        sessionId,
         url: input.url,
         companyName: briefData.companyName,
         valueProposition: briefData.valueProposition,
@@ -275,20 +200,17 @@ CONFIDENCE (for each metric above, set to "explicit" if directly stated on the p
         pagesScraped,
       });
 
-      return {
-        id: briefId,
-        url: input.url,
-        ...briefData,
-        pagesScraped,
-        pagesSummary,
-        createdAt: new Date(),
-      };
+      return { id: briefId, url: input.url, ...briefData, pagesScraped, pagesSummary, createdAt: new Date() };
     }),
 
-  list: protectedProcedure.query(async ({ ctx }) => {
-    return getBriefsByUser(ctx.user.id);
+  // ── List (session-scoped) ─────────────────────────────────────────────────
+  list: publicProcedure.query(async ({ ctx }) => {
+    const sessionId = getSessionId(ctx.req);
+    if (!sessionId) return [];
+    return getBriefsBySession(sessionId);
   }),
 
+  // ── Get by ID ─────────────────────────────────────────────────────────────
   getById: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
@@ -297,27 +219,28 @@ CONFIDENCE (for each metric above, set to "explicit" if directly stated on the p
       return brief;
     }),
 
-  delete: protectedProcedure
+  // ── Delete ────────────────────────────────────────────────────────────────
+  delete: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const brief = await getBriefById(input.id);
       if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
-      if (brief.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to delete this brief" });
-      }
-      await deleteBrief(input.id, ctx.user.id);
+      const sessionId = getSessionId(ctx.req);
+      const isOwner = (ctx.user && brief.userId === ctx.user.id) || (sessionId && brief.sessionId === sessionId);
+      if (!isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to delete this brief" });
+      await deleteBrief(input.id, ctx.user?.id ?? 0);
       return { success: true };
     }),
 
-  // ── Regenerate: re-scrape + re-analyze an existing brief ──────────────────
-  regenerate: protectedProcedure
+  // ── Regenerate ────────────────────────────────────────────────────────────
+  regenerate: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const existing = await getBriefById(input.id);
       if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
-      if (existing.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to regenerate this brief" });
-      }
+      const sessionId = getSessionId(ctx.req);
+      const isOwner = (ctx.user && existing.userId === ctx.user.id) || (sessionId && existing.sessionId === sessionId);
+      if (!isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to regenerate this brief" });
 
       let scrapeResult: Awaited<ReturnType<typeof scrapeMultiPage>>;
       try {
@@ -331,22 +254,9 @@ CONFIDENCE (for each metric above, set to "explicit" if directly stated on the p
         throw new TRPCError({ code: "BAD_REQUEST", message: "The page returned too little content to analyze." });
       }
 
-      const systemPrompt = `You are a senior product strategist at Fluxon. Analyze a company's website and produce a structured discovery brief with metrics and confidence indicators.`;
-      const userPrompt = buildBriefPrompt(existing.url, pageContent, pagesScraped, pagesSummary ?? "");
-
       let briefData: z.infer<typeof briefSchema>;
       try {
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          response_format: buildResponseFormat(),
-        });
-        const content = response.choices[0]?.message?.content;
-        if (!content) throw new Error("Empty LLM response");
-        const contentStr = typeof content === "string" ? content : JSON.stringify(content);
-        briefData = briefSchema.parse(JSON.parse(contentStr));
+        briefData = await runLLM(existing.url, pageContent, pagesScraped, pagesSummary ?? "");
       } catch (err: any) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `AI analysis failed: ${err.message}` });
       }
@@ -370,31 +280,24 @@ CONFIDENCE (for each metric above, set to "explicit" if directly stated on the p
         pagesScraped,
       });
 
-      return {
-        id: input.id,
-        url: existing.url,
-        ...briefData,
-        pagesScraped,
-        pagesSummary,
-        createdAt: existing.createdAt,
-      };
+      return { id: input.id, url: existing.url, ...briefData, pagesScraped, pagesSummary, createdAt: existing.createdAt };
     }),
 
   // ── Share link ────────────────────────────────────────────────────────────
-  createShareLink: protectedProcedure
+  createShareLink: publicProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const brief = await getBriefById(input.id);
       if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
-      if (brief.userId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to share this brief" });
-      }
-      // Reuse existing token or generate a new one
+      const sessionId = getSessionId(ctx.req);
+      const isOwner = (ctx.user && brief.userId === ctx.user.id) || (sessionId && brief.sessionId === sessionId);
+      if (!isOwner) throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to share this brief" });
       const token = brief.shareToken ?? nanoid(16);
       if (!brief.shareToken) await setShareToken(input.id, token);
       return { token };
     }),
 
+  // ── Get by share token ────────────────────────────────────────────────────
   getByToken: publicProcedure
     .input(z.object({ token: z.string() }))
     .query(async ({ input }) => {

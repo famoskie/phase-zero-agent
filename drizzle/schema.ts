@@ -48,6 +48,7 @@ export const briefs = mysqlTable("briefs", {
   metricsConfidence: text("metricsConfidence"), // JSON: { foundedYear: 'explicit'|'inferred', ... }
   pagesScraped: int("pagesScraped").default(1),
   shareToken: varchar("shareToken", { length: 64 }).unique(),
+  sessionId: varchar("sessionId", { length: 64 }), // anonymous session ownership
   isFavorite: int("isFavorite").default(0).notNull(), // 0 = false, 1 = true
   tags: text("tags"), // JSON array of tag strings e.g. ["fintech","series-b"]
   createdAt: timestamp("createdAt").defaultNow().notNull(),

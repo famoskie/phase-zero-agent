@@ -43,6 +43,13 @@
       "when": 1777614235561,
       "tag": "0005_goofy_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1777617080952,
+      "tag": "0006_perpetual_jocasta",
+      "breakpoints": true
     }
   ]
 }

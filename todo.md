@@ -98,3 +98,15 @@
 - [x] BriefCard header: move action buttons into a compact icon toolbar + overflow dropdown on mobile
 - [x] BriefCard header: stack company name / URL / metadata cleanly on mobile
 - [x] Ensure brief sections are full-width and readable on small screens
+
+## Feature: No Login Required
+- [x] Add sessionId column to briefs table (tracks anonymous ownership via cookie)
+- [x] Generate and apply DB migration for sessionId
+- [x] Add session cookie helper (generate + read anonymous session ID)
+- [x] Convert discovery.list, regenerate, delete, createShareLink to publicProcedure with session-based ownership
+- [x] Convert favorites.toggleFavorite, setTags, listFiltered, allTags to publicProcedure with session-based ownership
+- [x] Remove all isAuthenticated guards from frontend (History button, Regenerate, Share, tag input, compare)
+- [x] Remove sign-in nudge banner after generating a brief
+- [x] Remove "Sign in to save history" button from nav
+- [x] History sidebar visible to all users (session-scoped)
+- [x] Update tests to reflect public procedures

@@ -149,14 +149,44 @@ export async function setTags(id: number, userId: number, tags: string[]): Promi
   await db.update(briefs).set({ tags: JSON.stringify(tags) }).where(eq(briefs.id, id));
 }
 
+export async function getBriefsBySession(sessionId: string): Promise<Brief[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(briefs)
+    .where(eq(briefs.sessionId, sessionId))
+    .orderBy(desc(briefs.createdAt))
+    .limit(50);
+}
+
+export async function getBriefsBySessionFiltered(
+  sessionId: string,
+  filter: { favoritesOnly?: boolean; tag?: string }
+): Promise<Brief[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const results = await db.select().from(briefs)
+    .where(eq(briefs.sessionId, sessionId))
+    .orderBy(desc(briefs.createdAt))
+    .limit(50);
+  return results.filter((b) => {
+    if (filter.favoritesOnly && !b.isFavorite) return false;
+    if (filter.tag) {
+      try {
+        const t: string[] = b.tags ? JSON.parse(b.tags) : [];
+        if (!t.includes(filter.tag)) return false;
+      } catch { return false; }
+    }
+    return true;
+  });
+}
+
 export async function getBriefsByUserFiltered(
   userId: number,
   filter: { favoritesOnly?: boolean; tag?: string }
 ): Promise<Brief[]> {
   const db = await getDb();
   if (!db) return [];
-  let query = db.select().from(briefs).where(eq(briefs.userId, userId)).orderBy(desc(briefs.createdAt)).limit(50);
-  const results = await query;
+  const results = await db.select().from(briefs).where(eq(briefs.userId, userId)).orderBy(desc(briefs.createdAt)).limit(50);
   return results.filter((b) => {
     if (filter.favoritesOnly && !b.isFavorite) return false;
     if (filter.tag) {
