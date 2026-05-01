@@ -136,3 +136,35 @@ export async function setShareToken(id: number, token: string): Promise<void> {
   if (!db) throw new Error("Database not available");
   await db.update(briefs).set({ shareToken: token }).where(eq(briefs.id, id));
 }
+
+export async function toggleFavorite(id: number, userId: number, value: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(briefs).set({ isFavorite: value ? 1 : 0 }).where(eq(briefs.id, id));
+}
+
+export async function setTags(id: number, userId: number, tags: string[]): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(briefs).set({ tags: JSON.stringify(tags) }).where(eq(briefs.id, id));
+}
+
+export async function getBriefsByUserFiltered(
+  userId: number,
+  filter: { favoritesOnly?: boolean; tag?: string }
+): Promise<Brief[]> {
+  const db = await getDb();
+  if (!db) return [];
+  let query = db.select().from(briefs).where(eq(briefs.userId, userId)).orderBy(desc(briefs.createdAt)).limit(50);
+  const results = await query;
+  return results.filter((b) => {
+    if (filter.favoritesOnly && !b.isFavorite) return false;
+    if (filter.tag) {
+      try {
+        const t: string[] = b.tags ? JSON.parse(b.tags) : [];
+        if (!t.includes(filter.tag)) return false;
+      } catch { return false; }
+    }
+    return true;
+  });
+}

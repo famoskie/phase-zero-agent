@@ -17,6 +17,8 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Star,
+  Tag,
   Trash2,
   X,
 } from "lucide-react";
@@ -46,6 +48,8 @@ type Brief = {
   metricsConfidence?: string | Record<string, string> | null;
   pagesScraped?: number | null;
   pagesSummary?: string | null;
+  isFavorite?: number | null; // 1 = true, 0 = false
+  tags?: string | null; // JSON array string
 };
 
 // ─── Section config ───────────────────────────────────────────────────────────
@@ -232,7 +236,7 @@ function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerat
             </Button>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3 flex items-center flex-wrap gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)]">
             <Sparkles className="w-3 h-3" />
             Phase Zero Brief
@@ -244,6 +248,18 @@ function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerat
               year: "numeric",
             })}
           </span>
+          {/* Favorite indicator */}
+          {brief.isFavorite ? (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
+              <Star className="w-3 h-3 fill-amber-400" /> Favorited
+            </span>
+          ) : null}
+          {/* Tag chips */}
+          {(() => { try { return brief.tags ? JSON.parse(brief.tags) as string[] : []; } catch { return []; } })().map((tag: string) => (
+            <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)] border border-[oklch(0.88_0.06_264)]">
+              #{tag}
+            </span>
+          ))}
         </div>
       </div>
 
@@ -312,6 +328,56 @@ function BriefSkeleton({ url }: { url: string }) {
   );
 }
 
+// ─── Tag input component ─────────────────────────────────────────────────────
+function TagInput({ briefId, currentTags, onUpdate }: { briefId: number; currentTags: string[]; onUpdate: () => void }) {
+  const [input, setInput] = useState("");
+  const setTagsMutation = trpc.favorites.setTags.useMutation({ onSuccess: onUpdate });
+
+  const addTag = () => {
+    const tag = input.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!tag || currentTags.includes(tag) || currentTags.length >= 10) return;
+    setTagsMutation.mutate({ id: briefId, tags: [...currentTags, tag] });
+    setInput("");
+  };
+
+  const removeTag = (tag: string) => {
+    setTagsMutation.mutate({ id: briefId, tags: currentTags.filter((t) => t !== tag) });
+  };
+
+  return (
+    <div className="px-2 pb-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex flex-wrap gap-1 mb-1.5">
+        {currentTags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)] border border-[oklch(0.88_0.06_264)]"
+          >
+            {tag}
+            <button onClick={() => removeTag(tag)} className="hover:text-destructive transition-colors leading-none">×</button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-1">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
+          placeholder="Add tag…"
+          className="flex-1 text-[10px] px-2 py-1 rounded border border-border bg-secondary focus:outline-none focus:border-[oklch(0.38_0.12_264)] min-w-0"
+        />
+        <button
+          onClick={addTag}
+          disabled={!input.trim()}
+          className="text-[10px] px-2 py-1 rounded bg-[oklch(0.38_0.12_264)] text-white disabled:opacity-40 hover:bg-[oklch(0.32_0.12_264)] transition-colors"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── History item ─────────────────────────────────────────────────────────────
 function HistoryItem({
   brief,
@@ -320,6 +386,7 @@ function HistoryItem({
   onClick,
   onDelete,
   onToggleCompare,
+  onRefresh,
 }: {
   brief: Brief;
   isActive: boolean;
@@ -327,37 +394,73 @@ function HistoryItem({
   onClick: () => void;
   onDelete: () => void;
   onToggleCompare: () => void;
+  onRefresh: () => void;
 }) {
+  const [showTags, setShowTags] = useState(false);
+  const isFav = !!brief.isFavorite;
+  const parsedTags: string[] = (() => { try { return brief.tags ? JSON.parse(brief.tags) : []; } catch { return []; } })();
+
+  const favMutation = trpc.favorites.toggleFavorite.useMutation({ onSuccess: onRefresh });
+
   return (
-    <div
-      className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
-        isActive ? "bg-[oklch(0.94_0.04_264)]" : "hover:bg-secondary"
-      }`}
-      onClick={onClick}
-    >
-      {/* Compare checkbox */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
-        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-          isSelected
-            ? "bg-[oklch(0.38_0.12_264)] border-[oklch(0.38_0.12_264)] text-white"
-            : "border-border hover:border-[oklch(0.38_0.12_264)]"
-        }`}
-        title={isSelected ? "Remove from comparison" : "Add to comparison"}
+    <div className={`rounded-lg transition-colors ${isActive ? "bg-[oklch(0.94_0.04_264)]" : "hover:bg-secondary"}`}>
+      <div
+        className="group flex items-center gap-2 px-2 py-2 cursor-pointer"
+        onClick={onClick}
       >
-        {isSelected && <span className="text-[10px] font-bold leading-none">✓</span>}
-      </button>
-      <div className="w-6 h-6 rounded-md bg-border flex items-center justify-center shrink-0 text-xs">🏢</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">{brief.companyName}</p>
-        <p className="text-xs text-muted-foreground truncate">{brief.url}</p>
+        {/* Compare checkbox */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
+          className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+            isSelected ? "bg-[oklch(0.38_0.12_264)] border-[oklch(0.38_0.12_264)] text-white" : "border-border hover:border-[oklch(0.38_0.12_264)]"
+          }`}
+          title={isSelected ? "Remove from comparison" : "Add to comparison"}
+        >
+          {isSelected && <span className="text-[9px] font-bold leading-none">✓</span>}
+        </button>
+
+        {/* Star */}
+        <button
+          onClick={(e) => { e.stopPropagation(); favMutation.mutate({ id: brief.id, value: !isFav }); }}
+          className={`shrink-0 p-0.5 rounded transition-colors ${
+            isFav ? "text-amber-400" : "text-muted-foreground/30 hover:text-amber-400"
+          }`}
+          title={isFav ? "Remove from favorites" : "Add to favorites"}
+        >
+          <Star className={`w-3.5 h-3.5 ${isFav ? "fill-amber-400" : ""}`} />
+        </button>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{brief.companyName}</p>
+          {parsedTags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {parsedTags.slice(0, 3).map((t) => (
+                <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)] font-medium">{t}</span>
+              ))}
+              {parsedTags.length > 3 && <span className="text-[9px] text-muted-foreground">+{parsedTags.length - 3}</span>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowTags((v) => !v); }}
+            className="p-1 rounded hover:bg-secondary transition-colors"
+            title="Manage tags"
+          >
+            <Tag className="w-3 h-3 text-muted-foreground" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-all"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
       </div>
-      <button
-        onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-all"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
+      {showTags && (
+        <TagInput briefId={brief.id} currentTags={parsedTags} onUpdate={onRefresh} />
+      )}
     </div>
   );
 }
@@ -369,6 +472,7 @@ export default function Home() {
   const [activeBrief, setActiveBrief] = useState<Brief | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [compareIds, setCompareIds] = useState<Set<number>>(new Set());
+  const [historyFilter, setHistoryFilter] = useState<{ favoritesOnly?: boolean; tag?: string }>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   const toggleCompare = (id: number) => {
@@ -392,20 +496,23 @@ export default function Home() {
     onSuccess: (data) => {
       setActiveBrief(data as Brief);
       setUrl("");
-      if (isAuthenticated) utils.discovery.list.invalidate();
+      if (isAuthenticated) { utils.favorites.listFiltered.invalidate(); utils.favorites.allTags.invalidate(); }
     },
     onError: (err) => {
       toast.error(err.message || "Something went wrong. Please try again.");
     },
   });
 
-  const { data: history = [] } = trpc.discovery.list.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  const { data: history = [], refetch: refetchHistory } = trpc.favorites.listFiltered.useQuery(
+    historyFilter,
+    { enabled: isAuthenticated }
+  );
+  const { data: allTags = [] } = trpc.favorites.allTags.useQuery(undefined, { enabled: isAuthenticated });
 
   const deleteMutation = trpc.discovery.delete.useMutation({
     onSuccess: () => {
-      utils.discovery.list.invalidate();
+      utils.favorites.listFiltered.invalidate();
+      utils.favorites.allTags.invalidate();
       toast.success("Brief deleted");
     },
   });
@@ -474,12 +581,45 @@ export default function Home() {
           <aside className="w-72 border-r border-border bg-white flex flex-col shrink-0">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-foreground">Brief History</h2>
-              <button
-                onClick={() => setShowHistory(false)}
-                className="p-1 rounded hover:bg-secondary transition-colors"
-              >
+              <button onClick={() => setShowHistory(false)} className="p-1 rounded hover:bg-secondary transition-colors">
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
+            </div>
+            {/* Filter bar */}
+            <div className="px-3 py-2 border-b border-border bg-secondary/30 flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setHistoryFilter({})}
+                className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                  !historyFilter.favoritesOnly && !historyFilter.tag
+                    ? "bg-foreground text-white border-foreground"
+                    : "bg-white text-muted-foreground border-border hover:border-foreground"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setHistoryFilter({ favoritesOnly: true })}
+                className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                  historyFilter.favoritesOnly
+                    ? "bg-amber-400 text-white border-amber-400"
+                    : "bg-white text-muted-foreground border-border hover:border-amber-400"
+                }`}
+              >
+                <Star className="w-2.5 h-2.5" /> Favorites
+              </button>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setHistoryFilter({ tag })}
+                  className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border transition-colors ${
+                    historyFilter.tag === tag
+                      ? "bg-[oklch(0.38_0.12_264)] text-white border-[oklch(0.38_0.12_264)]"
+                      : "bg-white text-muted-foreground border-border hover:border-[oklch(0.38_0.12_264)]"
+                  }`}
+                >
+                  #{tag}
+                </button>
+              ))}
             </div>
             {/* Compare action bar */}
             {compareIds.size >= 2 && (
@@ -516,6 +656,10 @@ export default function Home() {
                       }}
                       onDelete={() => deleteMutation.mutate({ id: b.id })}
                       onToggleCompare={() => toggleCompare(b.id)}
+                      onRefresh={() => {
+                        utils.favorites.listFiltered.invalidate();
+                        utils.favorites.allTags.invalidate();
+                      }}
                     />
                   ))}
                   </div>

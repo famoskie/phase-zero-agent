@@ -78,3 +78,16 @@
 - [x] Build read-only SharedBriefPage at /brief/:token
 - [x] Add "Share" button to BriefCard that copies the share URL to clipboard
 - [x] Add /brief/:token route to App.tsx
+
+## Feature: Favorites & Tagging
+- [x] Add `isFavorite` boolean and `tags` text (JSON array) columns to briefs table
+- [x] Generate and apply DB migration
+- [x] Add `discovery.toggleFavorite` tRPC procedure
+- [x] Add `discovery.setTags` tRPC procedure
+- [x] Add `discovery.list` filter support (favorites only, by tag)
+- [x] Star button on each history item (filled star = favorited)
+- [x] Tag chips display on each history item
+- [x] Inline tag input to add/remove tags on a history item
+- [x] Filter bar at top of history sidebar (All / Favorites / tag pills)
+- [x] Favorites and tags also shown on the active BriefCard header
+- [x] Vitest: toggleFavorite and setTags procedures
