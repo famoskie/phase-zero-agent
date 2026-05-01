@@ -111,7 +111,6 @@ temp/
 
 # Platform debug/runtime files (not part of source)
 client/public/__manus__/
-client/public/__debug__/
 .manus-logs/
 .dev-logs/
 .webdev-static-assets/

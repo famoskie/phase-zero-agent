@@ -70,7 +70,7 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
 
 /**
  * Vite plugin to collect browser debug logs
- * - POST /__debug__/logs: Browser sends logs, written directly to files
+ * - POST /__manus__/logs: Browser sends logs, written directly to files
  * - Files: browserConsole.log, networkRequests.log, sessionReplay.log
  * - Auto-trimmed when exceeding 1MB (keeps newest entries)
  */
@@ -88,7 +88,7 @@ function vitePluginDebugCollector(): Plugin {
           {
             tag: "script",
             attrs: {
-              src: "/__debug__/debug-collector.js",
+              src: "/__manus__/debug-collector.js",
               defer: true,
             },
             injectTo: "head",
@@ -98,8 +98,8 @@ function vitePluginDebugCollector(): Plugin {
     },
 
     configureServer(server: ViteDevServer) {
-      // POST /__debug__/logs: Browser sends logs (written directly to files)
-      server.middlewares.use("/__debug__/logs", (req, res, next) => {
+      // POST /__manus__/logs: Browser sends logs (written directly to files)
+      server.middlewares.use("/__manus__/logs", (req, res, next) => {
         if (req.method !== "POST") {
           return next();
         }
