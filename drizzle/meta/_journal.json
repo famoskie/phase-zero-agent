@@ -22,6 +22,13 @@
       "when": 1777612843576,
       "tag": "0002_narrow_shape",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1777613158786,
+      "tag": "0003_late_slipstream",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,8 @@ export const briefs = mysqlTable("briefs", {
   businessModel: varchar("businessModel", { length: 64 }),
   techStack: text("techStack"),
   revenueModel: varchar("revenueModel", { length: 128 }),
+  metricsConfidence: text("metricsConfidence"), // JSON: { foundedYear: 'explicit'|'inferred', ... }
+  pagesScraped: int("pagesScraped").default(1),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

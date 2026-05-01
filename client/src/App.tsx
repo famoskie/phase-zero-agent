@@ -5,12 +5,18 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import CompareView from "./pages/CompareView";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/compare"} component={() => {
+        const params = new URLSearchParams(window.location.search);
+        const ids = (params.get("ids") || "").split(",").map(Number).filter(Boolean);
+        return <CompareView ids={ids} />;
+      }} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

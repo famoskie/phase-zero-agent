@@ -11,6 +11,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  GitCompare,
   Loader2,
   Search,
   Sparkles,
@@ -18,7 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { Streamdown } from "streamdown";
-import { MetricsBar, type CompanyMetrics } from "@/components/MetricsBar";
+import { MetricsBar, type CompanyMetrics, type MetricsConfidence } from "@/components/MetricsBar";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type Brief = {
@@ -39,6 +40,9 @@ type Brief = {
   businessModel?: string | null;
   techStack?: string | null;
   revenueModel?: string | null;
+  metricsConfidence?: string | Record<string, string> | null;
+  pagesScraped?: number | null;
+  pagesSummary?: string | null;
 };
 
 // ─── Section config ───────────────────────────────────────────────────────────
@@ -71,6 +75,16 @@ const SECTIONS = [
 
 // ─── Brief Card ───────────────────────────────────────────────────────────────
 function BriefCard({ brief }: { brief: Brief }) {
+  // Parse metricsConfidence from JSON string (DB) or use directly (fresh generate)
+  let parsedConfidence: MetricsConfidence | undefined;
+  if (brief.metricsConfidence) {
+    try {
+      parsedConfidence = typeof brief.metricsConfidence === "string"
+        ? JSON.parse(brief.metricsConfidence)
+        : brief.metricsConfidence as MetricsConfidence;
+    } catch { /* ignore */ }
+  }
+
   const metrics: CompanyMetrics = {
     foundedYear: brief.foundedYear,
     employeeCount: brief.employeeCount,
@@ -80,6 +94,7 @@ function BriefCard({ brief }: { brief: Brief }) {
     businessModel: brief.businessModel,
     techStack: brief.techStack,
     revenueModel: brief.revenueModel,
+    metricsConfidence: parsedConfidence,
   };
 
   const metricsText = [
@@ -167,7 +182,7 @@ function BriefCard({ brief }: { brief: Brief }) {
       </div>
 
       {/* Metrics Bar */}
-      <MetricsBar metrics={metrics} />
+      <MetricsBar metrics={metrics} pagesScraped={brief.pagesScraped} pagesSummary={brief.pagesSummary} />
 
       {/* Sections */}
       <div className="p-6 grid gap-4">
@@ -235,33 +250,44 @@ function BriefSkeleton({ url }: { url: string }) {
 function HistoryItem({
   brief,
   isActive,
+  isSelected,
   onClick,
   onDelete,
+  onToggleCompare,
 }: {
   brief: Brief;
   isActive: boolean;
+  isSelected: boolean;
   onClick: () => void;
   onDelete: () => void;
+  onToggleCompare: () => void;
 }) {
   return (
     <div
-      className={`group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+      className={`group flex items-center gap-2 px-2 py-2 rounded-lg cursor-pointer transition-colors ${
         isActive ? "bg-[oklch(0.94_0.04_264)]" : "hover:bg-secondary"
       }`}
       onClick={onClick}
     >
-      <div className="w-7 h-7 rounded-md bg-border flex items-center justify-center shrink-0 text-xs">
-        🏢
-      </div>
+      {/* Compare checkbox */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleCompare(); }}
+        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+          isSelected
+            ? "bg-[oklch(0.38_0.12_264)] border-[oklch(0.38_0.12_264)] text-white"
+            : "border-border hover:border-[oklch(0.38_0.12_264)]"
+        }`}
+        title={isSelected ? "Remove from comparison" : "Add to comparison"}
+      >
+        {isSelected && <span className="text-[10px] font-bold leading-none">✓</span>}
+      </button>
+      <div className="w-6 h-6 rounded-md bg-border flex items-center justify-center shrink-0 text-xs">🏢</div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{brief.companyName}</p>
         <p className="text-xs text-muted-foreground truncate">{brief.url}</p>
       </div>
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
         className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-destructive/10 hover:text-destructive transition-all"
       >
         <Trash2 className="w-3.5 h-3.5" />
@@ -276,7 +302,23 @@ export default function Home() {
   const [url, setUrl] = useState("");
   const [activeBrief, setActiveBrief] = useState<Brief | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  const [compareIds, setCompareIds] = useState<Set<number>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const toggleCompare = (id: number) => {
+    setCompareIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else if (next.size < 3) next.add(id);
+      else { toast.error("You can compare up to 3 briefs at a time"); }
+      return next;
+    });
+  };
+
+  const handleCompare = () => {
+    const ids = Array.from(compareIds).join(",");
+    window.location.href = `/compare?ids=${ids}`;
+  };
 
   const utils = trpc.useUtils();
 
@@ -373,6 +415,19 @@ export default function Home() {
                 <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
+            {/* Compare action bar */}
+            {compareIds.size >= 2 && (
+              <div className="px-3 py-2 border-b border-border bg-[oklch(0.94_0.04_264)]">
+                <Button
+                  size="sm"
+                  className="w-full gap-1.5 text-xs bg-[oklch(0.38_0.12_264)] hover:bg-[oklch(0.32_0.12_264)] text-white"
+                  onClick={handleCompare}
+                >
+                  <GitCompare className="w-3.5 h-3.5" />
+                  Compare {compareIds.size} Briefs
+                </Button>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto p-2">
               {history.length === 0 ? (
                 <div className="text-center py-8 px-4">
@@ -380,20 +435,25 @@ export default function Home() {
                   <p className="text-xs text-muted-foreground">No briefs yet. Generate your first one!</p>
                 </div>
               ) : (
-                <div className="space-y-0.5">
+                <>
+                  <p className="text-[10px] text-muted-foreground px-2 py-1.5">Check boxes to compare up to 3 briefs</p>
+                  <div className="space-y-0.5">
                   {history.map((b) => (
                     <HistoryItem
                       key={b.id}
                       brief={b as Brief}
                       isActive={activeBrief?.id === b.id}
+                      isSelected={compareIds.has(b.id)}
                       onClick={() => {
                         setActiveBrief(b as Brief);
                         setShowHistory(false);
                       }}
                       onDelete={() => deleteMutation.mutate({ id: b.id })}
+                      onToggleCompare={() => toggleCompare(b.id)}
                     />
                   ))}
-                </div>
+                  </div>
+                </>
               )}
             </div>
           </aside>

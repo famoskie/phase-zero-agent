@@ -37,3 +37,23 @@
 - [x] Integrate MetricsBar into BriefCard (displayed between header and sections)
 - [x] Show "N/A" gracefully for metrics that couldn't be inferred
 - [x] Update vitest tests to cover metrics extraction
+
+## Feature: Confidence Indicators
+- [x] Add metricsConfidence JSON column to briefs table (stores per-metric explicit/inferred flags)
+- [x] Generate and apply DB migration for metricsConfidence column
+- [x] Update AI prompt to return a confidence object alongside each metric value
+- [x] Update DB insert to persist metricsConfidence JSON
+- [x] Update MetricsBar to accept and display confidence badges (green dot = explicit, amber dot = inferred)
+
+## Feature: Multi-Page Scraping
+- [x] Update scraper to accept multiple URLs and scrape /about and /pricing in parallel
+- [x] Update discovery router to build URL list (homepage + /about + /pricing) and pass to scraper
+- [x] Deduplicate and merge scraped content before sending to LLM
+- [x] Add scraping source summary to brief header (e.g. "Scraped 3 pages")
+
+## Feature: Comparison View
+- [x] Add comparison mode toggle to history sidebar (select up to 3 briefs)
+- [x] Build CompareView page/component with side-by-side metrics table and brief sections
+- [x] Add route /compare to App.tsx
+- [x] Add "Compare" button to brief cards in history that adds brief to comparison selection
+- [x] Show diff highlights for metrics that differ between companies

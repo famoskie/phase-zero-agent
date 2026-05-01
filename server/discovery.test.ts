@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 // ── Mock dependencies before importing the router ──────────────────────────
 vi.mock("./scraper", () => ({
   scrapeUrl: vi.fn(),
+  scrapeMultiPage: vi.fn(),
 }));
 
 vi.mock("./_core/llm", () => ({
@@ -17,16 +18,23 @@ vi.mock("./db", () => ({
   deleteBrief: vi.fn(),
 }));
 
-import { scrapeUrl } from "./scraper";
+import { scrapeUrl, scrapeMultiPage } from "./scraper";
 import { invokeLLM } from "./_core/llm";
 import { getBriefsByUser, insertBrief } from "./db";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
 const mockScrape = scrapeUrl as ReturnType<typeof vi.fn>;
+const mockScrapeMulti = scrapeMultiPage as ReturnType<typeof vi.fn>;
 const mockLLM = invokeLLM as ReturnType<typeof vi.fn>;
 const mockInsert = insertBrief as ReturnType<typeof vi.fn>;
 const mockGetBriefs = getBriefsByUser as ReturnType<typeof vi.fn>;
+
+const MOCK_SCRAPE_RESULT = {
+  content: "Acme Corp builds enterprise widgets. We help teams ship faster. Founded in 2015.",
+  pagesScraped: 2,
+  pagesSummary: "homepage, /about",
+};
 
 const MOCK_BRIEF_CONTENT = {
   companyName: "Acme Corp",
@@ -42,6 +50,16 @@ const MOCK_BRIEF_CONTENT = {
   businessModel: "B2B SaaS",
   techStack: "React, Python, AWS",
   revenueModel: "Subscription",
+  metricsConfidence: {
+    foundedYear: "explicit",
+    employeeCount: "inferred",
+    fundingStage: "inferred",
+    industry: "explicit",
+    headquarters: "unknown",
+    businessModel: "explicit",
+    techStack: "inferred",
+    revenueModel: "explicit",
+  },
 };
 
 function makeCtx(user?: TrpcContext["user"]): TrpcContext {
@@ -58,7 +76,7 @@ describe("discovery.generate", () => {
   });
 
   it("returns a structured brief for a valid URL", async () => {
-    mockScrape.mockResolvedValue("Acme Corp builds enterprise widgets. We help teams ship faster.");
+    mockScrapeMulti.mockResolvedValue(MOCK_SCRAPE_RESULT);
     mockLLM.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify(MOCK_BRIEF_CONTENT) } }],
     });
@@ -79,14 +97,17 @@ describe("discovery.generate", () => {
     expect(result.businessModel).toBe("B2B SaaS");
     expect(result.techStack).toBe("React, Python, AWS");
     expect(result.revenueModel).toBe("Subscription");
-    expect(mockScrape).toHaveBeenCalledWith("https://acme.com");
+    expect(result.pagesScraped).toBe(2);
+    expect(result.metricsConfidence).toBeDefined();
+    expect((result.metricsConfidence as any).foundedYear).toBe("explicit");
+    expect(mockScrapeMulti).toHaveBeenCalledWith("https://acme.com");
     expect(mockInsert).toHaveBeenCalledWith(
       expect.objectContaining({ url: "https://acme.com", companyName: "Acme Corp" })
     );
   });
 
   it("associates brief with logged-in user", async () => {
-    mockScrape.mockResolvedValue("Some content that is long enough to pass the check.");
+    mockScrapeMulti.mockResolvedValue({ content: "Some content that is long enough to pass the check.", pagesScraped: 1, pagesSummary: "homepage" });
     mockLLM.mockResolvedValue({
       choices: [{ message: { content: JSON.stringify(MOCK_BRIEF_CONTENT) } }],
     });
@@ -112,7 +133,7 @@ describe("discovery.generate", () => {
   });
 
   it("throws BAD_REQUEST when scraper returns too little content", async () => {
-    mockScrape.mockResolvedValue("tiny");
+    mockScrapeMulti.mockResolvedValue({ content: "tiny", pagesScraped: 1, pagesSummary: "homepage" });
 
     const caller = appRouter.createCaller(makeCtx());
     await expect(caller.discovery.generate({ url: "https://acme.com" })).rejects.toThrow(
@@ -121,7 +142,7 @@ describe("discovery.generate", () => {
   });
 
   it("throws BAD_REQUEST when scraper fails", async () => {
-    mockScrape.mockRejectedValue(new Error("Connection refused"));
+    mockScrapeMulti.mockRejectedValue(new Error("Connection refused"));
 
     const caller = appRouter.createCaller(makeCtx());
     await expect(caller.discovery.generate({ url: "https://acme.com" })).rejects.toThrow(
