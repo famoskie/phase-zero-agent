@@ -53,10 +53,10 @@ Return a JSON object with exactly these fields:
 
 DISCOVERY BRIEF:
 - companyName: The company's name (string)
-- valueProposition: 2-3 sentences describing the company's core product and value proposition, grounded in the content (string)
-- userPainPoints: 3-4 specific user pain points or unmet needs that this company's product addresses or that their users likely experience, written as clear statements (string)
-- aiOpportunities: 3-4 concrete areas where AI/ML could meaningfully improve this company's product or operations, with brief rationale for each (string)
-- recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Explain the recommendation in 2-3 sentences (string)
+- valueProposition: 2-3 sentences describing the company's core product and value proposition, grounded in the content. Write as flowing prose (string)
+- userPainPoints: 3-4 specific user pain points. Format as a markdown bulleted list using "- " prefix for each point. Each point should be a complete sentence. Example: "- Teams waste hours on manual data entry.\n- Reports are siloed across departments." (string)
+- aiOpportunities: 3-4 concrete AI/ML opportunity areas. Format as a markdown bulleted list using "- " prefix. Use bold for the opportunity name followed by a colon and explanation. Example: "- **Automated Reporting:** AI could generate weekly summaries...\n- **Smart Routing:** ML models could..." (string)
+- recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Write as 2-3 sentences of flowing prose (string)
 
 COMPANY METRICS (use "Unknown" as value if not determinable):
 - foundedYear, employeeCount, fundingStage, industry, headquarters, businessModel, techStack, revenueModel (all strings)

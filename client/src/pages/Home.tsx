@@ -281,7 +281,7 @@ function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerat
                 {section.label}
               </h3>
             </div>
-            <div className="text-sm text-foreground leading-relaxed prose prose-sm max-w-none">
+            <div className="text-sm text-foreground leading-relaxed prose prose-sm max-w-none [&_ul]:mt-1.5 [&_ul]:space-y-1.5 [&_li]:leading-snug [&_strong]:font-semibold [&_strong]:text-foreground">
               <Streamdown>{brief[section.key]}</Streamdown>
             </div>
           </div>
