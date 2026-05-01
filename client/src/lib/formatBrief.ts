@@ -1,12 +1,13 @@
 /**
  * Normalizes brief section content for clean bullet-point rendering.
  *
- * The LLM sometimes returns items separated inline using:
- *   - Numbered: "First point. 2. Second point. 3. Third point."
- *   - Dash-separated: "First point. - Second point. - Third point."
- *   - Mixed: "First point. - Second point. 3. Third point."
+ * The LLM returns items separated inline in several ways:
+ *   - Numbered:      "First point. 2. Second point. 3. Third point."
+ *   - Dash-sep:      "First point. - Second point. - Third point."
+ *   - Mixed:         "First point. - Second point. 3. Third point."
+ *   - After period:  "...end of sentence. Next point starts here."
  *
- * This function converts all such patterns into proper markdown bullet lists.
+ * Strategy: detect any inline separator pattern and split into clean "- item" lines.
  */
 export function formatBriefSection(text: string | null | undefined): string {
   if (!text) return "";
@@ -18,36 +19,34 @@ export function formatBriefSection(text: string | null | undefined): string {
 
   // Detect inline numbered pattern: " 2. ", " 3. ", " 4. " etc.
   const hasInlineNumbers = /\s+\d+\.\s+/.test(text);
-  // Detect inline dash separator pattern: " - " between sentences
-  // Only match " - " that appears after a sentence (preceded by a letter/period/comma)
-  const hasInlineDashes = /[a-zA-Z.,]\s+[-–]\s+[A-Z*]/.test(text);
+
+  // Detect inline dash separator: ". - " or ". – " (period/comma then space-dash-space)
+  // This is the most reliable signal — a sentence ending then a dash separator
+  const hasInlineDashes = /[.!?]\s+[-–]\s+/.test(text);
 
   if (!hasInlineNumbers && !hasInlineDashes) return text;
 
-  let normalized = text;
+  let parts: string[] = [];
 
-  // Step 1: Normalize inline numbered items
   if (hasInlineNumbers) {
-    normalized = normalized
-      .replace(/^\s*1\.\s+/, "") // remove leading "1. "
+    // Split on numbered markers like " 2. ", " 3. " etc.
+    parts = text
+      .replace(/^\s*1\.\s+/, "") // strip leading "1. "
       .split(/\s+\d+\.\s+/)
       .map((s) => s.trim())
-      .filter(Boolean)
-      .join("\n|||"); // temporary separator
+      .filter(Boolean);
+  } else {
+    // Split on ". - " or ". – " patterns (sentence-ending period then dash separator)
+    // Use a lookahead to keep the period with the preceding sentence
+    parts = text
+      .split(/(?<=[.!?])\s+[-–]\s+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
   }
 
-  // Step 2: Normalize inline dash separators within each segment
-  // Split on " - " or " – " that appears to start a new item
-  // (preceded by end of sentence: letter, period, comma)
-  normalized = normalized
-    .split("\n|||")
-    .flatMap((segment) => {
-      // Split on " - Bold" or " - Sentence" patterns (dash before capital or bold)
-      const parts = segment.split(/\s+[-–]\s+(?=[A-Z*])/);
-      return parts.map((p) => p.trim()).filter(Boolean);
-    })
-    .map((item) => `- ${item}`)
-    .join("\n");
+  // If splitting produced only 1 part, the pattern wasn't actually a list separator
+  // Fall back to the original text
+  if (parts.length <= 1) return text;
 
-  return normalized;
+  return parts.map((item) => `- ${item}`).join("\n");
 }
