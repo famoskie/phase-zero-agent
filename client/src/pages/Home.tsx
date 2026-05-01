@@ -174,88 +174,89 @@ function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerat
     onError: (err) => toast.error(err.message || "Could not create share link"),
   });
 
+  const briefTags: string[] = (() => { try { return brief.tags ? JSON.parse(brief.tags) as string[] : []; } catch { return []; } })();
+
   return (
     <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
-      {/* Header */}
-      <div className="px-6 pt-6 pb-4 border-b border-border">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="font-display text-2xl font-bold text-foreground leading-tight">
+      {/* ── Header ── */}
+      <div className="px-4 sm:px-6 pt-5 pb-4 border-b border-border">
+
+        {/* Row 1: company name + action toolbar */}
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="min-w-0">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-foreground leading-tight truncate">
               {brief.companyName}
             </h2>
             <a
               href={brief.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mt-1 transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-0.5 transition-colors max-w-full"
             >
-              <ExternalLink className="w-3 h-3" />
-              {brief.url}
+              <ExternalLink className="w-3 h-3 shrink-0" />
+              <span className="truncate">{brief.url}</span>
             </a>
           </div>
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+
+          {/* Action toolbar — icon buttons on mobile, labeled on desktop */}
+          <div className="flex items-center gap-1 shrink-0">
             {isOwner && brief.id && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
                 onClick={() => regenerateMutation.mutate({ id: brief.id! })}
                 disabled={regenerateMutation.isPending}
-                className="gap-1.5 text-xs"
+                title="Regenerate brief"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
               >
                 {regenerateMutation.isPending
                   ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   : <RefreshCw className="w-3.5 h-3.5" />}
-                {regenerateMutation.isPending ? "Regenerating…" : "Regenerate"}
-              </Button>
+                <span className="hidden sm:inline">{regenerateMutation.isPending ? "Regenerating…" : "Regenerate"}</span>
+              </button>
             )}
             {isOwner && brief.id && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
                 onClick={() => shareMutation.mutate({ id: brief.id! })}
                 disabled={shareMutation.isPending}
-                className="gap-1.5 text-xs"
+                title="Copy share link"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
               >
-                {shareMutation.isPending
-                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  : <Link2 className="w-3.5 h-3.5" />}
-                Share
-              </Button>
+                {shareMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">Share</span>
+              </button>
             )}
-            <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5 text-xs">
+            <button onClick={handleCopy} title="Copy as text" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
               <Copy className="w-3.5 h-3.5" />
-              Copy
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportMd} className="gap-1.5 text-xs">
-              <Download className="w-3.5 h-3.5" />
-              MD
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-1.5 text-xs">
-              <Download className="w-3.5 h-3.5" />
-              PDF
-            </Button>
+              <span className="hidden sm:inline">Copy</span>
+            </button>
+            {/* Export dropdown-style: two small buttons */}
+            <div className="flex items-center border border-border rounded-lg overflow-hidden divide-x divide-border">
+              <button onClick={handleExportMd} title="Export Markdown" className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden xs:inline">MD</span>
+              </button>
+              <button onClick={handleExportPdf} title="Export PDF" className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+                <Download className="w-3.5 h-3.5" />
+                <span>PDF</span>
+              </button>
+            </div>
           </div>
         </div>
-        <div className="mt-3 flex items-center flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)]">
-            <Sparkles className="w-3 h-3" />
-            Phase Zero Brief
+
+        {/* Row 2: metadata pills */}
+        <div className="flex items-center flex-wrap gap-1.5">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)]">
+            <Sparkles className="w-2.5 h-2.5" />
+            Phase Zero
           </span>
-          <span className="text-xs text-muted-foreground">
-            {new Date(brief.createdAt).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
+          <span className="text-[11px] text-muted-foreground">
+            {new Date(brief.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
           </span>
-          {/* Favorite indicator */}
           {brief.isFavorite ? (
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
+            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-500">
               <Star className="w-3 h-3 fill-amber-400" /> Favorited
             </span>
           ) : null}
-          {/* Tag chips */}
-          {(() => { try { return brief.tags ? JSON.parse(brief.tags) as string[] : []; } catch { return []; } })().map((tag: string) => (
+          {briefTags.map((tag) => (
             <span key={tag} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)] border border-[oklch(0.88_0.06_264)]">
               #{tag}
             </span>
@@ -267,16 +268,16 @@ function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerat
       <MetricsBar metrics={metrics} pagesScraped={brief.pagesScraped} pagesSummary={brief.pagesSummary} />
 
       {/* Sections */}
-      <div className="p-6 grid gap-4">
+      <div className="p-4 sm:p-6 grid gap-3">
         {SECTIONS.map((section, i) => (
           <div
             key={section.key}
-            className={`rounded-xl p-5 bg-white border border-border ${section.color} animate-fade-in-up`}
+            className={`rounded-xl p-4 sm:p-5 bg-white border border-border ${section.color} animate-fade-in-up`}
             style={{ animationDelay: `${i * 0.08}s`, opacity: 0 }}
           >
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-base">{section.icon}</span>
-              <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="text-sm">{section.icon}</span>
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 {section.label}
               </h3>
             </div>

@@ -34,66 +34,76 @@ export type CompanyMetrics = {
   metricsConfidence?: MetricsConfidence | null;
 };
 
-const CONFIDENCE_CONFIG: Record<ConfidenceLevel, { label: string; color: string; dot: string }> = {
-  explicit: {
-    label: "Stated",
-    color: "text-emerald-600 bg-emerald-50 border-emerald-200",
-    dot: "bg-emerald-500",
-  },
-  inferred: {
-    label: "Inferred",
-    color: "text-amber-600 bg-amber-50 border-amber-200",
-    dot: "bg-amber-400",
-  },
-  unknown: {
-    label: "Unknown",
-    color: "text-muted-foreground/60 bg-secondary border-border",
-    dot: "bg-muted-foreground/30",
-  },
+const CONF_DOT: Record<ConfidenceLevel, { dot: string; title: string }> = {
+  explicit: { dot: "bg-emerald-500", title: "Stated on page" },
+  inferred: { dot: "bg-amber-400", title: "AI-inferred" },
+  unknown: { dot: "bg-muted-foreground/25", title: "Unknown" },
 };
 
-function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
-  const cfg = CONFIDENCE_CONFIG[level];
-  return (
-    <span
-      className={`inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border ${cfg.color}`}
-      title={level === "explicit" ? "Directly stated on the page" : level === "inferred" ? "Reasonably deduced from context" : "Could not be determined"}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  );
-}
+type MetricDef = {
+  key: keyof Omit<CompanyMetrics, "metricsConfidence">;
+  confKey: keyof MetricsConfidence;
+  label: string;
+  icon: React.ReactNode;
+};
 
-type MetricItem = {
+const METRIC_DEFS: MetricDef[] = [
+  { key: "industry", confKey: "industry", label: "Industry", icon: <Layers className="w-3 h-3" /> },
+  { key: "businessModel", confKey: "businessModel", label: "Model", icon: <Building2 className="w-3 h-3" /> },
+  { key: "fundingStage", confKey: "fundingStage", label: "Funding", icon: <TrendingUp className="w-3 h-3" /> },
+  { key: "employeeCount", confKey: "employeeCount", label: "Team", icon: <Users className="w-3 h-3" /> },
+  { key: "foundedYear", confKey: "foundedYear", label: "Founded", icon: <Calendar className="w-3 h-3" /> },
+  { key: "headquarters", confKey: "headquarters", label: "HQ", icon: <Globe className="w-3 h-3" /> },
+  { key: "revenueModel", confKey: "revenueModel", label: "Revenue", icon: <CircleDollarSign className="w-3 h-3" /> },
+  { key: "techStack", confKey: "techStack", label: "Stack", icon: <Code2 className="w-3 h-3" /> },
+];
+
+// ─── Single metric pill ───────────────────────────────────────────────────────
+function MetricPill({
+  icon,
+  label,
+  value,
+  confidence,
+}: {
   icon: React.ReactNode;
   label: string;
   value: string;
   confidence: ConfidenceLevel;
-};
-
-function MetricChip({ icon, label, value, confidence }: MetricItem) {
+}) {
   const isUnknown = !value || value.toLowerCase() === "unknown";
+  const conf = CONF_DOT[confidence];
+
   return (
-    <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-white border border-border min-w-0 shadow-sm">
-      <span className={`shrink-0 mt-0.5 ${isUnknown ? "text-muted-foreground/30" : "text-[oklch(0.38_0.12_264)]"}`}>
+    <div
+      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-border shrink-0 min-w-0 max-w-[180px] sm:max-w-[220px]"
+      title={`${label}: ${isUnknown ? "Unknown" : value} (${conf.title})`}
+    >
+      {/* Icon + label */}
+      <span className={`shrink-0 ${isUnknown ? "text-muted-foreground/30" : "text-[oklch(0.38_0.12_264)]"}`}>
         {icon}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-1 mb-0.5">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground leading-none">
-            {label}
-          </p>
-          <ConfidenceBadge level={confidence} />
-        </div>
-        <p className={`text-sm font-medium leading-snug ${isUnknown ? "text-muted-foreground/40 italic" : "text-foreground"}`}>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground leading-none mb-0.5">
+          {label}
+        </p>
+        <p
+          className={`text-xs font-medium leading-tight truncate ${
+            isUnknown ? "text-muted-foreground/40 italic" : "text-foreground"
+          }`}
+        >
           {isUnknown ? "Unknown" : value}
         </p>
       </div>
+      {/* Confidence dot */}
+      <span
+        className={`w-1.5 h-1.5 rounded-full shrink-0 ${conf.dot}`}
+        title={conf.title}
+      />
     </div>
   );
 }
 
+// ─── Main MetricsBar ─────────────────────────────────────────────────────────
 export function MetricsBar({
   metrics,
   pagesScraped,
@@ -105,42 +115,37 @@ export function MetricsBar({
 }) {
   const conf = metrics.metricsConfidence ?? {};
 
-  const items: MetricItem[] = [
-    { icon: <Layers className="w-3.5 h-3.5" />, label: "Industry", value: metrics.industry || "", confidence: conf.industry ?? "unknown" },
-    { icon: <Building2 className="w-3.5 h-3.5" />, label: "Business Model", value: metrics.businessModel || "", confidence: conf.businessModel ?? "unknown" },
-    { icon: <TrendingUp className="w-3.5 h-3.5" />, label: "Funding Stage", value: metrics.fundingStage || "", confidence: conf.fundingStage ?? "unknown" },
-    { icon: <Users className="w-3.5 h-3.5" />, label: "Team Size", value: metrics.employeeCount || "", confidence: conf.employeeCount ?? "unknown" },
-    { icon: <Calendar className="w-3.5 h-3.5" />, label: "Founded", value: metrics.foundedYear || "", confidence: conf.foundedYear ?? "unknown" },
-    { icon: <Globe className="w-3.5 h-3.5" />, label: "HQ", value: metrics.headquarters || "", confidence: conf.headquarters ?? "unknown" },
-    { icon: <CircleDollarSign className="w-3.5 h-3.5" />, label: "Revenue Model", value: metrics.revenueModel || "", confidence: conf.revenueModel ?? "unknown" },
-    { icon: <Code2 className="w-3.5 h-3.5" />, label: "Tech Stack", value: metrics.techStack || "", confidence: conf.techStack ?? "unknown" },
-  ];
+  const pills = METRIC_DEFS.map((def) => ({
+    ...def,
+    value: (metrics[def.key] as string | null | undefined) ?? "",
+    confidence: (conf[def.confKey] ?? "unknown") as ConfidenceLevel,
+  }));
 
-  const explicitCount = items.filter((i) => i.confidence === "explicit").length;
-  const inferredCount = items.filter((i) => i.confidence === "inferred").length;
+  const knownCount = pills.filter((p) => p.confidence === "explicit").length;
+  const inferredCount = pills.filter((p) => p.confidence === "inferred").length;
 
   return (
-    <div className="px-6 py-4 border-b border-border bg-secondary/20">
+    <div className="border-b border-border bg-secondary/20">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+      <div className="flex items-center justify-between gap-3 px-4 pt-3 pb-2 flex-wrap">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
           Company Snapshot
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
           {pagesScraped && pagesScraped > 1 && (
-            <span className="text-[10px] text-muted-foreground bg-secondary border border-border px-2 py-0.5 rounded-full">
+            <span className="text-[10px] text-muted-foreground bg-white border border-border px-2 py-0.5 rounded-full whitespace-nowrap">
               Scraped {pagesScraped} pages: {pagesSummary}
             </span>
           )}
-          <div className="flex items-center gap-1.5">
-            {explicitCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600">
+          <div className="flex items-center gap-2.5">
+            {knownCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                {explicitCount} stated
+                {knownCount} stated
               </span>
             )}
             {inferredCount > 0 && (
-              <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-600">
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
                 {inferredCount} inferred
               </span>
@@ -148,10 +153,20 @@ export function MetricsBar({
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {items.map((item) => (
-          <MetricChip key={item.label} {...item} />
-        ))}
+
+      {/* Scrollable pill row */}
+      <div className="overflow-x-auto pb-3 px-4">
+        <div className="flex gap-2" style={{ width: "max-content" }}>
+          {pills.map((pill) => (
+            <MetricPill
+              key={pill.label}
+              icon={pill.icon}
+              label={pill.label}
+              value={pill.value}
+              confidence={pill.confidence}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

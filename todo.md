@@ -91,3 +91,10 @@
 - [x] Filter bar at top of history sidebar (All / Favorites / tag pills)
 - [x] Favorites and tags also shown on the active BriefCard header
 - [x] Vitest: toggleFavorite and setTags procedures
+
+## UI Redesign: Better Web & Mobile Layout
+- [x] MetricsBar: replace 4-col grid with horizontal scrollable pill-row (label + value inline, confidence dot)
+- [x] MetricsBar: truncate long values with tooltip on hover
+- [x] BriefCard header: move action buttons into a compact icon toolbar + overflow dropdown on mobile
+- [x] BriefCard header: stack company name / URL / metadata cleanly on mobile
+- [x] Ensure brief sections are full-width and readable on small screens
