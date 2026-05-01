@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { exportBriefAsPdf } from "@/lib/pdfExport";
+import { formatBriefSection } from "@/lib/formatBrief";
 import { Streamdown } from "streamdown";
 import { MetricsBar, type CompanyMetrics, type MetricsConfidence } from "@/components/MetricsBar";
 
@@ -282,7 +283,7 @@ function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerat
               </h3>
             </div>
             <div className="text-sm text-foreground leading-relaxed prose prose-sm max-w-none [&_ul]:mt-1.5 [&_ul]:space-y-1.5 [&_li]:leading-snug [&_strong]:font-semibold [&_strong]:text-foreground">
-              <Streamdown>{brief[section.key]}</Streamdown>
+              <Streamdown>{formatBriefSection(brief[section.key])}</Streamdown>
             </div>
           </div>
         ))}

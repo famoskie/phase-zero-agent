@@ -54,8 +54,8 @@ Return a JSON object with exactly these fields:
 DISCOVERY BRIEF:
 - companyName: The company's name (string)
 - valueProposition: 2-3 sentences describing the company's core product and value proposition, grounded in the content. Write as flowing prose (string)
-- userPainPoints: 3-4 specific user pain points. Format as a markdown bulleted list using "- " prefix for each point. Each point should be a complete sentence. Example: "- Teams waste hours on manual data entry.\n- Reports are siloed across departments." (string)
-- aiOpportunities: 3-4 concrete AI/ML opportunity areas. Format as a markdown bulleted list using "- " prefix. Use bold for the opportunity name followed by a colon and explanation. Example: "- **Automated Reporting:** AI could generate weekly summaries...\n- **Smart Routing:** ML models could..." (string)
+- userPainPoints: 3-4 specific user pain points. IMPORTANT: Format as a markdown bulleted list. Each item MUST start with "- " on its own line. Do NOT use inline numbers like "1. ... 2. ... 3.". Use newlines between items. Example: "- Teams waste hours on manual data entry.\n- Reports are siloed across departments.\n- No unified view of revenue and expenses." (string)
+- aiOpportunities: 3-4 concrete AI/ML opportunity areas. IMPORTANT: Format as a markdown bulleted list. Each item MUST start with "- " on its own line. Do NOT use inline numbers. Use bold for the opportunity name. Example: "- **Automated Reporting:** AI could generate weekly summaries automatically.\n- **Smart Routing:** ML models could optimize task assignment." (string)
 - recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Write as 2-3 sentences of flowing prose (string)
 
 COMPANY METRICS (use "Unknown" as value if not determinable):

@@ -5,6 +5,7 @@ import { Copy, Download, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 import { exportBriefAsPdf } from "@/lib/pdfExport";
+import { formatBriefSection } from "@/lib/formatBrief";
 
 const SECTIONS = [
   { key: "valueProposition" as const, label: "Company & Core Value Proposition", icon: "🏢", color: "border-l-[3px] border-l-[oklch(0.38_0.12_264)]" },
@@ -173,7 +174,7 @@ export default function SharedBriefPage({ token }: { token: string }) {
                     </h3>
                   </div>
                   <div className="text-sm text-foreground leading-relaxed prose prose-sm max-w-none [&_ul]:mt-1.5 [&_ul]:space-y-1.5 [&_li]:leading-snug [&_strong]:font-semibold [&_strong]:text-foreground">
-                    <Streamdown>{(brief as any)[section.key] || "—"}</Streamdown>
+                    <Streamdown>{formatBriefSection((brief as any)[section.key]) || "—"}</Streamdown>
                   </div>
                 </div>
               ))}
