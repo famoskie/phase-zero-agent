@@ -12,12 +12,15 @@ import {
   Download,
   ExternalLink,
   GitCompare,
+  Link2,
   Loader2,
+  RefreshCw,
   Search,
   Sparkles,
   Trash2,
   X,
 } from "lucide-react";
+import { exportBriefAsPdf } from "@/lib/pdfExport";
 import { Streamdown } from "streamdown";
 import { MetricsBar, type CompanyMetrics, type MetricsConfidence } from "@/components/MetricsBar";
 
@@ -74,7 +77,7 @@ const SECTIONS = [
 ];
 
 // ─── Brief Card ───────────────────────────────────────────────────────────────
-function BriefCard({ brief }: { brief: Brief }) {
+function BriefCard({ brief, onRegenerate, isOwner }: { brief: Brief; onRegenerate?: (updated: Brief) => void; isOwner?: boolean }) {
   // Parse metricsConfidence from JSON string (DB) or use directly (fresh generate)
   let parsedConfidence: MetricsConfidence | undefined;
   if (brief.metricsConfidence) {
@@ -114,17 +117,58 @@ function BriefCard({ brief }: { brief: Brief }) {
     toast.success("Brief copied to clipboard");
   };
 
-  const handleExport = () => {
+  const handleExportMd = () => {
     const text = `# Phase Zero Discovery Brief\n**Company:** ${brief.companyName}\n**URL:** ${brief.url}\n**Generated:** ${new Date(brief.createdAt).toLocaleDateString()}\n${metricsText ? `\n**Snapshot:** ${metricsText}` : ""}\n\n---\n\n## Company & Core Value Proposition\n${brief.valueProposition}\n\n## Inferred User Pain Points\n${brief.userPainPoints}\n\n## AI Opportunity Areas\n${brief.aiOpportunities}\n\n## Recommended Fluxon Engagement Type\n${brief.recommendedEngagement}`;
     const blob = new Blob([text], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
+    const mdUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
+    a.href = mdUrl;
     a.download = `phase-zero-${brief.companyName.toLowerCase().replace(/\s+/g, "-")}.md`;
     a.click();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(mdUrl);
     toast.success("Brief exported as Markdown");
   };
+
+  const handleExportPdf = () => {
+    exportBriefAsPdf({
+      companyName: brief.companyName,
+      url: brief.url,
+      createdAt: brief.createdAt,
+      valueProposition: brief.valueProposition,
+      userPainPoints: brief.userPainPoints,
+      aiOpportunities: brief.aiOpportunities,
+      recommendedEngagement: brief.recommendedEngagement,
+      industry: brief.industry,
+      businessModel: brief.businessModel,
+      fundingStage: brief.fundingStage,
+      employeeCount: brief.employeeCount,
+      foundedYear: brief.foundedYear,
+      headquarters: brief.headquarters,
+      revenueModel: brief.revenueModel,
+      techStack: brief.techStack,
+      pagesScraped: brief.pagesScraped,
+    });
+    toast.success("PDF downloaded");
+  };
+
+  const utils = trpc.useUtils();
+  const regenerateMutation = trpc.discovery.regenerate.useMutation({
+    onSuccess: (data) => {
+      onRegenerate?.(data as Brief);
+      utils.discovery.list.invalidate();
+      toast.success("Brief regenerated successfully");
+    },
+    onError: (err) => toast.error(err.message || "Regeneration failed"),
+  });
+
+  const shareMutation = trpc.discovery.createShareLink.useMutation({
+    onSuccess: ({ token }) => {
+      const shareUrl = `${window.location.origin}/brief/${token}`;
+      navigator.clipboard.writeText(shareUrl);
+      toast.success("Share link copied to clipboard");
+    },
+    onError: (err) => toast.error(err.message || "Could not create share link"),
+  });
 
   return (
     <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -145,24 +189,46 @@ function BriefCard({ brief }: { brief: Brief }) {
               {brief.url}
             </a>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopy}
-              className="gap-1.5 text-xs"
-            >
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {isOwner && brief.id && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => regenerateMutation.mutate({ id: brief.id! })}
+                disabled={regenerateMutation.isPending}
+                className="gap-1.5 text-xs"
+              >
+                {regenerateMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <RefreshCw className="w-3.5 h-3.5" />}
+                {regenerateMutation.isPending ? "Regenerating…" : "Regenerate"}
+              </Button>
+            )}
+            {isOwner && brief.id && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => shareMutation.mutate({ id: brief.id! })}
+                disabled={shareMutation.isPending}
+                className="gap-1.5 text-xs"
+              >
+                {shareMutation.isPending
+                  ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  : <Link2 className="w-3.5 h-3.5" />}
+                Share
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5 text-xs">
               <Copy className="w-3.5 h-3.5" />
               Copy
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              className="gap-1.5 text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={handleExportMd} className="gap-1.5 text-xs">
               <Download className="w-3.5 h-3.5" />
-              Export
+              MD
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPdf} className="gap-1.5 text-xs">
+              <Download className="w-3.5 h-3.5" />
+              PDF
             </Button>
           </div>
         </div>
@@ -519,7 +585,13 @@ export default function Home() {
             {isLoading && <BriefSkeleton url={url || generateMutation.variables?.url || ""} />}
 
             {/* Brief output */}
-            {activeBrief && !isLoading && <BriefCard brief={activeBrief} />}
+            {activeBrief && !isLoading && (
+              <BriefCard
+                brief={activeBrief}
+                isOwner={isAuthenticated}
+                onRegenerate={(updated) => setActiveBrief(updated)}
+              />
+            )}
 
             {/* Empty state with feature hints */}
             {!activeBrief && !isLoading && (

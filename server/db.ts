@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { Brief, InsertBrief, InsertUser, briefs, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -116,4 +116,23 @@ export async function deleteBrief(id: number, userId: number): Promise<void> {
   if (!db) return;
   await db.delete(briefs).where(eq(briefs.id, id));
   // Note: userId scoping handled at procedure level (ownership check)
+}
+
+export async function updateBrief(id: number, data: Partial<InsertBrief>): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(briefs).set(data).where(eq(briefs.id, id));
+}
+
+export async function getBriefByToken(token: string): Promise<Brief | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(briefs).where(eq(briefs.shareToken, token)).limit(1);
+  return result[0];
+}
+
+export async function setShareToken(id: number, token: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(briefs).set({ shareToken: token }).where(eq(briefs.id, id));
 }

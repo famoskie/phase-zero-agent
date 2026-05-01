@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { deleteBrief, getBriefById, getBriefsByUser, insertBrief } from "../db";
+import { deleteBrief, getBriefById, getBriefsByUser, insertBrief, updateBrief, getBriefByToken, setShareToken } from "../db";
+import { nanoid } from "nanoid";
 import { invokeLLM } from "../_core/llm";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { scrapeMultiPage } from "../scraper";
@@ -28,6 +29,82 @@ const metricsConfidenceSchema = z.object({
   techStack: confidenceLevel,
   revenueModel: confidenceLevel,
 });
+
+// ── Shared helpers ──────────────────────────────────────────────────────────────
+function buildBriefPrompt(url: string, pageContent: string, pagesScraped: number, pagesSummary: string): string {
+  return `Analyze the following website content scraped from ${pagesScraped} page(s) (${pagesSummary}) and produce a structured discovery brief with company metrics and confidence indicators.
+
+Website URL: ${url}
+Website Content:
+---
+${pageContent}
+---
+
+Return a JSON object with exactly these fields:
+
+DISCOVERY BRIEF:
+- companyName: The company's name (string)
+- valueProposition: 2-3 sentences describing the company's core product and value proposition, grounded in the content (string)
+- userPainPoints: 3-4 specific user pain points or unmet needs that this company's product addresses or that their users likely experience, written as clear statements (string)
+- aiOpportunities: 3-4 concrete areas where AI/ML could meaningfully improve this company's product or operations, with brief rationale for each (string)
+- recommendedEngagement: Which of Fluxon's service lines best fits this company right now and why. Choose from: ${FLUXON_SERVICES.join(", ")}. Explain the recommendation in 2-3 sentences (string)
+
+COMPANY METRICS (use "Unknown" as value if not determinable):
+- foundedYear, employeeCount, fundingStage, industry, headquarters, businessModel, techStack, revenueModel (all strings)
+
+CONFIDENCE:
+- metricsConfidence: object with keys for each metric above, each value must be exactly "explicit", "inferred", or "unknown"`;
+}
+
+function buildResponseFormat() {
+  return {
+    type: "json_schema" as const,
+    json_schema: {
+      name: "discovery_brief",
+      strict: true,
+      schema: {
+        type: "object",
+        properties: {
+          companyName: { type: "string" },
+          valueProposition: { type: "string" },
+          userPainPoints: { type: "string" },
+          aiOpportunities: { type: "string" },
+          recommendedEngagement: { type: "string" },
+          foundedYear: { type: "string" },
+          employeeCount: { type: "string" },
+          fundingStage: { type: "string" },
+          industry: { type: "string" },
+          headquarters: { type: "string" },
+          businessModel: { type: "string" },
+          techStack: { type: "string" },
+          revenueModel: { type: "string" },
+          metricsConfidence: {
+            type: "object",
+            properties: {
+              foundedYear: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              employeeCount: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              fundingStage: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              industry: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              headquarters: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              businessModel: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              techStack: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+              revenueModel: { type: "string", enum: ["explicit", "inferred", "unknown"] },
+            },
+            required: ["foundedYear", "employeeCount", "fundingStage", "industry", "headquarters", "businessModel", "techStack", "revenueModel"],
+            additionalProperties: false,
+          },
+        },
+        required: [
+          "companyName", "valueProposition", "userPainPoints", "aiOpportunities",
+          "recommendedEngagement", "foundedYear", "employeeCount", "fundingStage",
+          "industry", "headquarters", "businessModel", "techStack", "revenueModel",
+          "metricsConfidence",
+        ],
+        additionalProperties: false,
+      },
+    },
+  };
+}
 
 const briefSchema = z.object({
   companyName: z.string(),
@@ -230,5 +307,99 @@ CONFIDENCE (for each metric above, set to "explicit" if directly stated on the p
       }
       await deleteBrief(input.id, ctx.user.id);
       return { success: true };
+    }),
+
+  // ── Regenerate: re-scrape + re-analyze an existing brief ──────────────────
+  regenerate: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const existing = await getBriefById(input.id);
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
+      if (existing.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to regenerate this brief" });
+      }
+
+      let scrapeResult: Awaited<ReturnType<typeof scrapeMultiPage>>;
+      try {
+        scrapeResult = await scrapeMultiPage(existing.url);
+      } catch (err: any) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Could not fetch the URL: ${err.message}` });
+      }
+
+      const { content: pageContent, pagesScraped, pagesSummary } = scrapeResult;
+      if (!pageContent || pageContent.length < 50) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "The page returned too little content to analyze." });
+      }
+
+      const systemPrompt = `You are a senior product strategist at Fluxon. Analyze a company's website and produce a structured discovery brief with metrics and confidence indicators.`;
+      const userPrompt = buildBriefPrompt(existing.url, pageContent, pagesScraped, pagesSummary ?? "");
+
+      let briefData: z.infer<typeof briefSchema>;
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          response_format: buildResponseFormat(),
+        });
+        const content = response.choices[0]?.message?.content;
+        if (!content) throw new Error("Empty LLM response");
+        const contentStr = typeof content === "string" ? content : JSON.stringify(content);
+        briefData = briefSchema.parse(JSON.parse(contentStr));
+      } catch (err: any) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `AI analysis failed: ${err.message}` });
+      }
+
+      await updateBrief(input.id, {
+        companyName: briefData.companyName,
+        valueProposition: briefData.valueProposition,
+        userPainPoints: briefData.userPainPoints,
+        aiOpportunities: briefData.aiOpportunities,
+        recommendedEngagement: briefData.recommendedEngagement,
+        rawContent: pageContent.slice(0, 2000),
+        foundedYear: briefData.foundedYear,
+        employeeCount: briefData.employeeCount,
+        fundingStage: briefData.fundingStage,
+        industry: briefData.industry,
+        headquarters: briefData.headquarters,
+        businessModel: briefData.businessModel,
+        techStack: briefData.techStack,
+        revenueModel: briefData.revenueModel,
+        metricsConfidence: JSON.stringify(briefData.metricsConfidence),
+        pagesScraped,
+      });
+
+      return {
+        id: input.id,
+        url: existing.url,
+        ...briefData,
+        pagesScraped,
+        pagesSummary,
+        createdAt: existing.createdAt,
+      };
+    }),
+
+  // ── Share link ────────────────────────────────────────────────────────────
+  createShareLink: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input, ctx }) => {
+      const brief = await getBriefById(input.id);
+      if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found" });
+      if (brief.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "You do not have permission to share this brief" });
+      }
+      // Reuse existing token or generate a new one
+      const token = brief.shareToken ?? nanoid(16);
+      if (!brief.shareToken) await setShareToken(input.id, token);
+      return { token };
+    }),
+
+  getByToken: publicProcedure
+    .input(z.object({ token: z.string() }))
+    .query(async ({ input }) => {
+      const brief = await getBriefByToken(input.token);
+      if (!brief) throw new TRPCError({ code: "NOT_FOUND", message: "Brief not found or link has expired" });
+      return brief;
     }),
 });

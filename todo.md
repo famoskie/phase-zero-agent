@@ -57,3 +57,24 @@
 - [x] Add route /compare to App.tsx
 - [x] Add "Compare" button to brief cards in history that adds brief to comparison selection
 - [x] Show diff highlights for metrics that differ between companies
+
+## Feature: Regenerate
+- [x] Add `discovery.regenerate` tRPC procedure (re-scrape URL, re-run LLM, update existing brief row)
+- [x] Add "Regenerate" button to BriefCard header
+- [x] Show loading state on regenerate (spinner replaces button)
+- [x] Invalidate history list after regenerate
+
+## Feature: PDF Export
+- [x] Install html-pdf-node or use puppeteer-free approach (jsPDF + html2canvas on client)
+- [x] Add `discovery.exportPdf` tRPC procedure that returns a base64 PDF
+- [x] Build branded PDF template (company name, URL, date, 4 sections, metrics table)
+- [x] Wire "Export as PDF" button in BriefCard to download the PDF
+
+## Feature: Public Share Link
+- [x] Add `shareToken` varchar column to briefs table (unique, random token)
+- [x] Generate and apply DB migration for shareToken
+- [x] Add `discovery.getByToken` public tRPC procedure
+- [x] Add `discovery.createShareLink` protected procedure (generates token if not set)
+- [x] Build read-only SharedBriefPage at /brief/:token
+- [x] Add "Share" button to BriefCard that copies the share URL to clipboard
+- [x] Add /brief/:token route to App.tsx

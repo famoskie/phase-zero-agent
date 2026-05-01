@@ -6,12 +6,16 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import CompareView from "./pages/CompareView";
+import SharedBriefPage from "./pages/SharedBriefPage";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/brief/:token"} component={({ params }: { params: { token: string } }) => (
+        <SharedBriefPage token={params.token} />
+      )} />
       <Route path={"/compare"} component={() => {
         const params = new URLSearchParams(window.location.search);
         const ids = (params.get("ids") || "").split(",").map(Number).filter(Boolean);

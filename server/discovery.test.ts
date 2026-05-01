@@ -16,11 +16,14 @@ vi.mock("./db", () => ({
   getBriefsByUser: vi.fn().mockResolvedValue([]),
   getBriefById: vi.fn(),
   deleteBrief: vi.fn(),
+  updateBrief: vi.fn().mockResolvedValue(undefined),
+  getBriefByToken: vi.fn(),
+  setShareToken: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { scrapeUrl, scrapeMultiPage } from "./scraper";
 import { invokeLLM } from "./_core/llm";
-import { getBriefsByUser, insertBrief } from "./db";
+import { getBriefsByUser, insertBrief, getBriefById, getBriefByToken, updateBrief } from "./db";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -29,6 +32,9 @@ const mockScrapeMulti = scrapeMultiPage as ReturnType<typeof vi.fn>;
 const mockLLM = invokeLLM as ReturnType<typeof vi.fn>;
 const mockInsert = insertBrief as ReturnType<typeof vi.fn>;
 const mockGetBriefs = getBriefsByUser as ReturnType<typeof vi.fn>;
+const mockGetBriefById = getBriefById as ReturnType<typeof vi.fn>;
+const mockGetBriefByToken = getBriefByToken as ReturnType<typeof vi.fn>;
+const mockUpdateBrief = updateBrief as ReturnType<typeof vi.fn>;
 
 const MOCK_SCRAPE_RESULT = {
   content: "Acme Corp builds enterprise widgets. We help teams ship faster. Founded in 2015.",
@@ -153,6 +159,57 @@ describe("discovery.generate", () => {
   it("rejects invalid URLs", async () => {
     const caller = appRouter.createCaller(makeCtx());
     await expect(caller.discovery.generate({ url: "not-a-url" })).rejects.toThrow();
+  });
+});
+
+describe("discovery.regenerate", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("updates an existing brief and returns fresh data", async () => {
+    const user: TrpcContext["user"] = {
+      id: 3, openId: "user-3", name: "Bob", email: "bob@example.com",
+      loginMethod: "manus", role: "user", createdAt: new Date(),
+      updatedAt: new Date(), lastSignedIn: new Date(),
+    };
+    mockGetBriefById.mockResolvedValue({ id: 5, userId: 3, url: "https://acme.com", companyName: "Acme" });
+    mockScrapeMulti.mockResolvedValue(MOCK_SCRAPE_RESULT);
+    mockLLM.mockResolvedValue({ choices: [{ message: { content: JSON.stringify(MOCK_BRIEF_CONTENT) } }] });
+
+    const caller = appRouter.createCaller(makeCtx(user));
+    const result = await caller.discovery.regenerate({ id: 5 });
+
+    expect(result.companyName).toBe("Acme Corp");
+    expect(mockUpdateBrief).toHaveBeenCalledWith(5, expect.objectContaining({ companyName: "Acme Corp" }));
+  });
+
+  it("throws FORBIDDEN when user does not own the brief", async () => {
+    const user: TrpcContext["user"] = {
+      id: 99, openId: "user-99", name: "Eve", email: "eve@example.com",
+      loginMethod: "manus", role: "user", createdAt: new Date(),
+      updatedAt: new Date(), lastSignedIn: new Date(),
+    };
+    mockGetBriefById.mockResolvedValue({ id: 5, userId: 3, url: "https://acme.com" });
+
+    const caller = appRouter.createCaller(makeCtx(user));
+    await expect(caller.discovery.regenerate({ id: 5 })).rejects.toThrow(TRPCError);
+  });
+});
+
+describe("discovery.getByToken", () => {
+  it("returns brief for valid token", async () => {
+    const mockBrief = { id: 7, shareToken: "abc123", companyName: "Acme" };
+    mockGetBriefByToken.mockResolvedValue(mockBrief);
+
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.discovery.getByToken({ token: "abc123" });
+    expect(result.companyName).toBe("Acme");
+  });
+
+  it("throws NOT_FOUND for invalid token", async () => {
+    mockGetBriefByToken.mockResolvedValue(undefined);
+
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(caller.discovery.getByToken({ token: "bad" })).rejects.toThrow(TRPCError);
   });
 });
 

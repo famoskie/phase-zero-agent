@@ -47,6 +47,7 @@ export const briefs = mysqlTable("briefs", {
   revenueModel: varchar("revenueModel", { length: 128 }),
   metricsConfidence: text("metricsConfidence"), // JSON: { foundedYear: 'explicit'|'inferred', ... }
   pagesScraped: int("pagesScraped").default(1),
+  shareToken: varchar("shareToken", { length: 64 }).unique(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
