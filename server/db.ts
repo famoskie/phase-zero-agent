@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { Brief, InsertBrief, InsertUser, briefs, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,31 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Brief queries
+export async function insertBrief(brief: InsertBrief): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(briefs).values(brief);
+  return (result[0] as any).insertId as number;
+}
+
+export async function getBriefsByUser(userId: number | null): Promise<Brief[]> {
+  const db = await getDb();
+  if (!db) return [];
+  if (userId === null) return [];
+  return db.select().from(briefs).where(eq(briefs.userId, userId)).orderBy(desc(briefs.createdAt)).limit(20);
+}
+
+export async function getBriefById(id: number): Promise<Brief | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(briefs).where(eq(briefs.id, id)).limit(1);
+  return result[0];
+}
+
+export async function deleteBrief(id: number, userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(briefs).where(eq(briefs.id, id));
+  // Note: userId scoping handled at procedure level (ownership check)
+}
