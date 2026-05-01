@@ -502,7 +502,9 @@ export default function Home() {
       utils.favorites.allTags.invalidate();
     },
     onError: (err) => {
-      toast.error(err.message || "Something went wrong. Please try again.");
+      const msg = err.message || "Something went wrong. Please try again.";
+      // Show a clean, actionable error message
+      toast.error(msg, { duration: 6000 });
     },
   });
 
@@ -519,16 +521,44 @@ export default function Home() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
-    let normalized = url.trim();
+    const trimmed = url.trim();
+    if (!trimmed) return;
+
+    // Normalize: add https:// if missing
+    let normalized = trimmed;
     if (!normalized.startsWith("http://") && !normalized.startsWith("https://")) {
       normalized = "https://" + normalized;
     }
+
+    // Basic format check before sending to server
+    try {
+      const parsed = new URL(normalized);
+      // Block obviously invalid inputs
+      if (!parsed.hostname.includes(".")) {
+        toast.error("Please enter a valid website URL, e.g. https://company.com");
+        return;
+      }
+      // Block localhost and private IPs
+      if (
+        parsed.hostname === "localhost" ||
+        parsed.hostname.startsWith("127.") ||
+        parsed.hostname.startsWith("192.168.") ||
+        parsed.hostname.startsWith("10.")
+      ) {
+        toast.error("Please enter a public website URL.");
+        return;
+      }
+    } catch {
+      toast.error("Please enter a valid website URL, e.g. https://company.com");
+      return;
+    }
+
     setActiveBrief(null);
     generateMutation.mutate({ url: normalized });
   };
 
   const isLoading = generateMutation.isPending;
+  const generateError = generateMutation.error?.message ?? null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -718,6 +748,17 @@ export default function Home() {
                 </Button>
               </form>
             </div>
+
+            {/* Inline error display */}
+            {generateError && !isLoading && !activeBrief && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 flex items-start gap-3 animate-fade-in-up">
+                <span className="text-destructive mt-0.5 shrink-0 text-base">⚠️</span>
+                <div>
+                  <p className="text-sm font-semibold text-destructive">Could not generate brief</p>
+                  <p className="text-xs text-destructive/80 mt-0.5 leading-relaxed">{generateError}</p>
+                </div>
+              </div>
+            )}
 
             {/* Loading state */}
             {isLoading && <BriefSkeleton url={url || generateMutation.variables?.url || ""} />}
