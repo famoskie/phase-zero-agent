@@ -160,10 +160,11 @@ export default function CompareView({ ids }: { ids: number[] }) {
               </span>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest px-2.5 py-1 rounded-full bg-[oklch(0.94_0.04_264)] text-[oklch(0.38_0.12_264)]">
-            <Sparkles className="w-3 h-3" />
-            Phase Zero
-          </span>
+          <img
+            src="/manus-storage/phase-zero-logo_d73cfc85.png"
+            alt="Phase Zero"
+            className="h-6 w-auto object-contain opacity-80"
+          />
         </div>
       </header>
 

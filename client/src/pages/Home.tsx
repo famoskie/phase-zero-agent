@@ -536,14 +536,18 @@ export default function Home() {
       {/* ── Nav ── */}
       <header className="border-b border-border bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container flex items-center justify-between h-14">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-foreground flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-display font-bold text-base tracking-tight text-foreground">
-              Phase Zero
-            </span>
-          </div>
+          <a
+            href="/"
+            onClick={(e) => { e.preventDefault(); setActiveBrief(null); setUrl(""); }}
+            className="flex items-center hover:opacity-80 transition-opacity"
+            title="Phase Zero — Home"
+          >
+            <img
+              src="/manus-storage/phase-zero-logo_d73cfc85.png"
+              alt="Phase Zero"
+              className="h-7 w-auto object-contain"
+            />
+          </a>
           <div className="flex items-center gap-2">
             {isAuthenticated && (
               <Button
