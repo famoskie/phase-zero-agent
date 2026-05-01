@@ -37,11 +37,26 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+// Generate or retrieve a persistent anonymous session ID
+const SESSION_KEY = "pz_session_id";
+function getOrCreateSessionId(): string {
+  let id = localStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
+}
+const SESSION_ID = getOrCreateSessionId();
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
+      headers() {
+        return { "x-session-id": SESSION_ID };
+      },
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),
